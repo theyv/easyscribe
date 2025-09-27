@@ -1,0 +1,24 @@
+# Podstawowe zależności dla transkrypcji audio
+sounddevice>=0.4.6
+numpy>=1.21.0
+
+# Dla obsługi plików audio (wybierz jedną z opcji)
+librosa>=0.9.0
+# lub
+# soundfile>=0.12.0
+
+# Faster Whisper (domyślny model)
+faster-whisper>=0.10.0
+
+# NVIDIA Parakeet v3 (opcjonalny model)
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# NVIDIA NeMo Toolkit dla Parakeet v3
+nemo_toolkit[asr]>=2.4.0
+
+# Opcjonalne - poprawia wydajność CUDA dla Parakeet v3
+cuda-python>=12.3
+
+# GUI (opcjonalne, dla okienek dialogowych)
+# tkinter jest wbudowane w Python
