@@ -1,111 +1,223 @@
-# EasyScribe - Transkrypcja Audio (Whisper & Parakeet v3)
+# EasyScribe
 
-Aplikacja do transkrypcji audio z możliwością wyboru między dwoma typami modeli AI:
-- **Faster Whisper** - szybki model z wyborem rozmiaru (tiny/base/small/medium/large-v3)
-- **NVIDIA Parakeet v3** - nowoczesny, wielojęzyczny model
+Audio transcription app with folder organization, tagging, and cloud sync.
 
-## Funkcje
+## Project Structure
 
-- ✅ Transkrypcja plików audio (drag & drop)
-- ✅ Nagrywanie na żywo z mikrofonu
-- ✅ Wybór modelu AI (Whisper lub Parakeet v3)
-- ✅ Opcje formatowania (z/bez timecodów)
-- ✅ Automatyczne wykrywanie języka
-- ✅ Obsługa GPU (CUDA) dla szybszej transkrypcji
-- ✅ Automatyczne pobieranie brakujących bibliotek
-- ✅ Zapisywanie wyników w folderze `output`
-- ✅ Ciche działanie (wyciszone logi bibliotek)
+```
+easyscribe/
+├── electron/              # Electron main process files
+│   ├── main.ts           # Main Electron entry point
+│   ├── preload.ts        # Preload script
+│   └── modules/          # Electron modules (empty for now)
+├── python/               # Python dependencies for audio processing
+│   └── requirements.txt
+├── src/                  # Source code
+│   ├── renderer/         # React renderer process
+│   │   ├── components/   # React components
+│   │   ├── pages/        # Page components
+│   │   ├── hooks/        # Custom React hooks
+│   │   ├── stores/       # State management (Zustand)
+│   │   ├── lib/          # Utility libraries
+│   │   ├── styles/       # CSS/Tailwind styles
+│   │   ├── App.tsx       # Root React component
+│   │   └── main.tsx      # React entry point
+│   └── shared/           # Shared code between processes
+│       ├── types.ts      # TypeScript interfaces
+│       ├── ipc-channels.ts # IPC channel constants
+│       └── defaults.ts   # Default values
+├── resources/            # Static resources
+│   └── icons/            # App icons (empty for now)
+├── package.json          # Dependencies and scripts
+├── tsconfig.json         # TypeScript configuration
+├── electron.vite.config.ts # Electron + Vite config
+├── electron-builder.yml  # Electron builder config
+├── tailwind.config.js    # Tailwind CSS config
+└── postcss.config.js     # PostCSS config
+```
 
-## Wymagania
+## Getting Started
 
-### Podstawowe
+### Prerequisites
+
+- Node.js 18+
+- Python 3.10+ (for audio processing)
+- FFmpeg (for audio processing, included via ffmpeg-static)
+
+### Installation
+
+1. Clone the repository:
 ```bash
-pip install sounddevice numpy
+git clone https://github.com/your-org/easyscribe.git
+cd easyscribe
 ```
 
-### Dla plików audio (wybierz jedną opcję)
+2. Install dependencies:
 ```bash
-pip install librosa
-# lub
-pip install soundfile
+npm install
 ```
 
-### Dla Faster Whisper
+3. Set up environment variables:
 ```bash
-pip install faster-whisper
+cp .env.example .env
+# Edit .env with your API keys
 ```
 
-### Dla NVIDIA Parakeet v3
+4. Install Python dependencies:
 ```bash
-pip install nemo_toolkit[asr]
+# Windows
+python/install.bat
+
+# macOS/Linux
+python/install.sh
 ```
 
-### Instalacja wszystkich zależności
+### Development
+
+Start the development server:
 ```bash
-pip install -r requirements.txt
+npm run dev
 ```
 
-## Użytkowanie
+### Build
 
-### Uruchomienie
-1. **Tryb mikrofonu**: Uruchom `easyscribe.bat` lub `python easyscribe.py`
-2. **Tryb pliku**: Przeciągnij plik audio na `easyscribe.bat`
-
-### Automatyczna instalacja
-Aplikacja automatycznie wykryje i zainstaluje brakujące biblioteki przy pierwszym uruchomieniu.
-
-### Wybór modelu
-Po uruchomieniu aplikacja zapyta o wybór modelu:
-- **1** - Faster Whisper (następnie wybierz rozmiar: tiny/base/small/medium/large-v3)
-- **2** - NVIDIA Parakeet v3 (nowoczesny, wielojęzyczny)
-
-### Obsługiwane formaty
-- Audio: `.wav`, `.mp3`, `.m4a`, `.flac`, `.ogg`, `.aac`
-- Wideo: `.mp4`, `.mkv`, `.avi`, `.mov`
-
-## Porównanie modeli
-
-| Model | Rozmiar | Zalety | Wady |
-|-------|---------|--------|------|
-| **Faster Whisper** | tiny | - Najszybszy<br>- Najmniejsze zużycie RAM | - Najmniej dokładny |
-| | base | - Szybki<br>- Dobra jakość | - Średnie zużycie zasobów |
-| | small | - Średnia szybkość<br>- Lepsza jakość | - Większe zużycie zasobów |
-| | medium | - Wolniejszy<br>- Wysoka jakość | - Duże zużycie zasobów |
-| | large-v3 | - Najwyższa jakość | - Najwolniejszy<br>- Największe zużycie RAM |
-| **Parakeet v3** | - | - Bardzo wysoka dokładność<br>- Wielojęzyczny<br>- Automatyczne wykrywanie języka | - Wymaga NeMo<br>- Większe zużycie zasobów |
-
-## Struktura plików
-
-```
-transcribe py/
-├── easyscribe.py               # Główna aplikacja
-├── easyscribe.bat              # Skrypt uruchamiający
-├── requirements.txt            # Lista zależności
-├── README.md                   # Ta dokumentacja
-├── models/                     # Katalog na modele AI
-└── output/                     # Katalog z transkrypcjami
-```
-
-## Rozwiązywanie problemów
-
-### Błąd CUDA
-Jeśli CUDA nie jest dostępne, aplikacja automatycznie przełączy się na CPU (może być wolne).
-
-### Brak bibliotek dla Parakeet v3
-Jeśli brakuje `nemo_toolkit[asr]`, aplikacja automatycznie przełączy się na Whisper.
-
-### Logi Parakeet v3
-Domyślnie logi NeMo są wyciszone. Aby je włączyć, ustaw zmienną środowiskową:
+Build for development:
 ```bash
-set SHOW_NEMO_LOGS=1
-easyscribe.bat
+npm run build
 ```
 
-### Problemy z audio
-Sprawdź czy masz zainstalowane odpowiednie biblioteki audio (`librosa` lub `soundfile`).
+### Build for Production
 
-## Licencja
+Build distribution packages for your platform:
 
-Aplikacja wykorzystuje otwarte modele AI:
-- Faster Whisper: MIT License
-- NVIDIA Parakeet v3: Apache 2.0 License
+```bash
+# Windows
+npm run build:win
+
+# macOS
+npm run build:mac
+
+# Linux
+npm run build:linux
+```
+
+Built files will be in the `out/` directory.
+
+### Preview Production Build
+
+```bash
+npm run preview
+```
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file in the root directory with the following variables:
+
+```env
+# Supabase Configuration
+VITE_SUPABASE_URL=your-supabase-project-url
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+
+# Groq API Key (for AI transcription)
+VITE_GROQ_API_KEY=your-groq-api-key
+```
+
+### Settings
+
+The app stores settings locally and can be configured through the Settings page:
+- **Device Settings**: Configure audio input devices
+- **Engine Settings**: Choose transcription engine (Groq, Whisper, etc.)
+- **API Settings**: Configure API keys for transcription services
+- **Hotkey Settings**: Set global hotkeys for recording
+- **Output Settings**: Configure output format and location
+- **Audio Settings**: Adjust audio quality and format
+- **Appearance Settings**: Theme and display preferences
+- **Behavior Settings**: Auto-start, notifications, etc.
+- **Data Settings**: Database management and sync settings
+
+## Features
+
+- **File Transcription**: Import or upload audio files for transcription
+- **Live Recording**: Record audio in real-time using global hotkeys
+- **Folder Organization**: Organize transcriptions into custom folders
+- **Tagging System**: Add tags to transcriptions for easy filtering
+- **Cloud Sync**: Optional Supabase integration for data synchronization
+- **Search**: Full-text search across all transcriptions
+- **Export**: Export transcriptions as TXT or SRT files
+- **Multiple Engines**: Support for Groq, Whisper, and other transcription engines
+
+## Troubleshooting
+
+### Python Dependencies Not Found
+
+If you encounter Python-related errors:
+
+1. Ensure Python 3.10+ is installed:
+```bash
+python --version
+```
+
+2. Reinstall Python dependencies:
+```bash
+# Windows
+python/install.bat
+
+# macOS/Linux
+python/install.sh
+```
+
+### Audio Device Not Found
+
+If no audio devices are detected:
+
+1. Check system audio settings
+2. Ensure microphone permissions are granted
+3. Try restarting the application
+
+### Transcription Fails
+
+If transcription fails:
+
+1. Check your API key in Settings > API Settings
+2. Ensure you have internet connectivity (for cloud-based transcription)
+3. Check the error message in the processing queue
+4. Try a different transcription engine
+
+### Build Errors
+
+If you encounter build errors:
+
+1. Clear the build cache:
+```bash
+rm -rf dist dist-electron out node_modules
+npm install
+```
+
+2. Ensure all dependencies are installed:
+```bash
+npm install
+```
+
+3. Check Node.js version (must be 18+):
+```bash
+node --version
+```
+
+## Technology Stack
+
+- **Electron** - Desktop framework
+- **React** - UI library
+- **TypeScript** - Type safety
+- **Vite** - Build tool
+- **Tailwind CSS** - Styling
+- **Zustand** - State management
+- **TanStack Query** - Data fetching
+- **Supabase** - Cloud sync backend
+- **Groq API** - AI transcription service
+- **Python** - Audio processing backend
+
+## License
+
+MIT
