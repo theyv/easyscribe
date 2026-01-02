@@ -1,0 +1,61 @@
+=== Team Standup Meeting ===
+Created: Invalid Date
+Type: file
+
+Good morning everyone. Today we discussed the progress on the artificial intelligence project. The team has made significant progress on the machine learning model. We need to focus on improving the accuracy of the predictions. Next week we will have a demo for the stakeholders. Please make sure all tasks are completed by Friday.
+
+---
+
+=== Product Planning Session ===
+Created: Invalid Date
+Type: file
+
+During this meeting we outlined the roadmap for Q1 2025. Key priorities include improving the user interface, adding new features for mobile users, and enhancing the performance of the application. The development team will focus on the backend optimization while the design team works on the new dashboard.
+
+---
+
+=== Spotkanie z klientem ===
+Created: Invalid Date
+Type: file
+
+Dzień dobry, dziękuję za spotkanie. Omówiliśmy szczegóły projektu. Klient jest zadowolony z dotychczasowych postępów. Należy zwrócić uwagę na terminy. Zakończenie projektu planowane jest na koniec marca. Proszę o przygotowanie raportu do przyszłego tygodnia.
+
+---
+
+=== Interview with John Smith ===
+Created: Invalid Date
+Type: file
+
+Interviewer: Can you tell us about your experience with software development? John: I have been working in the industry for over 10 years. I started as a junior developer and worked my way up to senior positions. I specialize in frontend development with React and TypeScript. I also have experience with backend technologies like Node.js and Python.
+
+---
+
+=== Notatki z konferencji ===
+Created: Invalid Date
+Type: file
+
+Prelegenci omówili najnowsze trendy w technologii. Sztuczna inteligencja i uczenie maszynowe to główne tematy. Wiele firm inwestuje w te technologie. Przyszłość wygląda obiecująco. Konferencja była bardzo pouczająca.
+
+---
+
+=== Live recording: Quick sync ===
+Created: Invalid Date
+Type: live
+
+Hey everyone, just wanted to sync up quickly on the current sprint. We have three tickets remaining. The first one is about fixing the bug in the authentication module. The second is adding the new feature for file uploads. The third is improving the performance of the search functionality. Let me know if you have any questions.
+
+---
+
+=== Live recording: Pomysły na projekt ===
+Created: Invalid Date
+Type: live
+
+Dobra, mam kilka pomysłów na nowy projekt. Po pierwsze, możemy dodać funkcję automatycznego transkrybowania. Po drugie, warto pomyśleć o integracji z innymi usługami. Po trzecie, interfejs powinien być bardziej intuicyjny. Co wy na to?
+
+---
+
+=== Quick voice note ===
+Created: Invalid Date
+Type: live
+
+Remember to buy groceries: milk, eggs, bread, and vegetables. Also need to call the dentist for an appointment. Don't forget about the meeting tomorrow at 2 PM.

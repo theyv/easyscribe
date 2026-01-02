@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { supabase } from '@/renderer/lib/supabase'
 import { useTranscriptionStore, TranscriptionFilter } from '@/renderer/stores/transcriptionStore'
 import { Transcription } from '@/shared/types'
 
@@ -28,16 +29,14 @@ export function useTranscriptions() {
     setError(null)
 
     try {
-      // TODO: Implement Supabase fetch
-      // const { data, error } = await supabase
-      //   .from('transcriptions')
-      //   .select('*, tags(*)')
-      //   .order('created_at', { ascending: false })
+      const { data, error } = await supabase
+        .from('transcriptions')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-      // if (error) throw error
+      if (error) throw error
 
-      // setTranscriptions(data || [])
-      setTranscriptions([])
+      setTranscriptions(data || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch transcriptions')
     } finally {

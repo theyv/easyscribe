@@ -3,7 +3,19 @@ import { SettingsSection } from '../../../shared/types'
 import { cn } from '../../lib/utils'
 import { Button } from '../ui/button'
 import { ScrollArea } from '../ui/scroll-area'
-import { Menu, X } from 'lucide-react'
+import {
+  Menu,
+  X,
+  Monitor,
+  Settings,
+  Key,
+  Keyboard,
+  FileText,
+  Mic,
+  Palette,
+  Bell,
+  Database
+} from 'lucide-react'
 
 interface SettingsLayoutProps {
   children: React.ReactNode
@@ -11,16 +23,16 @@ interface SettingsLayoutProps {
   onSectionChange: (section: SettingsSection) => void
 }
 
-const SECTIONS: { id: SettingsSection; label: string; icon: string }[] = [
-  { id: 'device', label: 'Device', icon: '🖥️' },
-  { id: 'engines', label: 'Engines', icon: '⚙️' },
-  { id: 'api', label: 'API', icon: '🔑' },
-  { id: 'hotkeys', label: 'Hotkeys', icon: '⌨️' },
-  { id: 'output', label: 'Output', icon: '📄' },
-  { id: 'audio', label: 'Audio', icon: '🎤' },
-  { id: 'appearance', label: 'Appearance', icon: '🎨' },
-  { id: 'behavior', label: 'Behavior', icon: '🔔' },
-  { id: 'data', label: 'Data', icon: '💾' }
+const SECTIONS: { id: SettingsSection; label: string; icon: React.ReactNode }[] = [
+  { id: 'device', label: 'Device', icon: <Monitor className="h-5 w-5" /> },
+  { id: 'engines', label: 'Engines', icon: <Settings className="h-5 w-5" /> },
+  { id: 'api', label: 'API', icon: <Key className="h-5 w-5" /> },
+  { id: 'hotkeys', label: 'Hotkeys', icon: <Keyboard className="h-5 w-5" /> },
+  { id: 'output', label: 'Output', icon: <FileText className="h-5 w-5" /> },
+  { id: 'audio', label: 'Audio', icon: <Mic className="h-5 w-5" /> },
+  { id: 'appearance', label: 'Appearance', icon: <Palette className="h-5 w-5" /> },
+  { id: 'behavior', label: 'Behavior', icon: <Bell className="h-5 w-5" /> },
+  { id: 'data', label: 'Data', icon: <Database className="h-5 w-5" /> }
 ]
 
 export function SettingsLayout({
@@ -78,7 +90,7 @@ export function SettingsLayout({
                     : 'hover:bg-accent hover:text-accent-foreground'
                 )}
               >
-                <span className="text-base">{section.icon}</span>
+                {section.icon}
                 {section.label}
               </button>
             ))}

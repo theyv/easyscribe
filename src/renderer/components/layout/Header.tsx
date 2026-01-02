@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { SyncStatus } from "../common/SyncStatus"
+import { toast } from "@/components/ui/toast"
 
 interface HeaderProps {
   className?: string
@@ -19,11 +20,21 @@ export const Header: React.FC<HeaderProps> = ({
   onSearch,
 }) => {
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [notificationCount, setNotificationCount] = React.useState(0)
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     setSearchQuery(value)
     onSearch?.(value)
+  }
+
+  const handleNotifications = () => {
+    if (notificationCount > 0) {
+      toast.success(`You have ${notificationCount} notification${notificationCount > 1 ? 's' : ''}`)
+      setNotificationCount(0)
+    } else {
+      toast.info("No new notifications")
+    }
   }
 
   const getThemeIcon = () => {
@@ -66,9 +77,16 @@ export const Header: React.FC<HeaderProps> = ({
         <Button
           variant="ghost"
           size="icon"
+          onClick={handleNotifications}
           aria-label="Notifications"
+          className="relative"
         >
           <Bell className="h-5 w-5" />
+          {notificationCount > 0 && (
+            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] text-destructive-foreground flex items-center justify-center">
+              {notificationCount}
+            </span>
+          )}
         </Button>
         
         <Button

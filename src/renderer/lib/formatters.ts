@@ -1,3 +1,5 @@
+import { Transcription } from '@/shared/types'
+
 /**
  * Format duration in seconds to human-readable format
  * @param seconds - Duration in seconds
@@ -136,4 +138,50 @@ export function formatDateTime(
   }
 ): string {
   return new Date(date).toLocaleString(undefined, options)
+}
+
+/**
+ * Format transcriptions as TXT
+ */
+export function formatTranscriptionsAsTxt(transcriptions: Transcription[]): string {
+  return transcriptions.map((t, index) => {
+    const header = `=== ${t.title} ===`
+    const meta = `Created: ${new Date(t.createdAt).toLocaleString()}\nType: ${t.type}`
+    const content = t.content || '(No content)'
+    const separator = index < transcriptions.length - 1 ? '\n---\n' : ''
+    
+    return `${header}\n${meta}\n\n${content}\n${separator}`
+  }).join('\n')
+}
+
+/**
+ * Format transcriptions as SRT (SubRip format)
+ */
+export function formatTranscriptionsAsSrt(transcriptions: Transcription[]): string {
+  return transcriptions.map((t, index) => {
+    const srtIndex = index + 1
+    
+    // Calculate start and end times based on duration
+    // If no duration, use 0 and 5 seconds as default
+    const duration = t.duration || 5
+    const startTime = 0
+    const endTime = duration
+    
+    const formatSrtTime = (seconds: number): string => {
+      const hours = Math.floor(seconds / 3600)
+      const minutes = Math.floor((seconds % 3600) / 60)
+      const secs = Math.floor(seconds % 60)
+      const ms = Math.floor((seconds % 1) * 1000)
+      
+      const pad = (num: number) => num.toString().padStart(2, '0')
+      const padMs = (num: number) => num.toString().padStart(3, '0')
+      
+      return `${pad(hours)}:${pad(minutes)}:${pad(secs)},${padMs(ms)}`
+    }
+    
+    const timecode = `${formatSrtTime(startTime)} --> ${formatSrtTime(endTime)}`
+    const content = t.content || '(No content)'
+    
+    return `${srtIndex}\n${timecode}\n${content}\n`
+  }).join('\n')
 }

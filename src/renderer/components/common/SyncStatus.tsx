@@ -11,6 +11,10 @@ interface SyncStatusData {
   queueSize: number
 }
 
+function isElectronMode(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).electron?.settingsPersistence
+}
+
 export function SyncStatus() {
   const [syncData, setSyncData] = useState<SyncStatusData>({
     status: 'synced',
@@ -19,8 +23,13 @@ export function SyncStatus() {
   })
   const [isManualSyncing, setIsManualSyncing] = useState(false)
 
-  // Load sync status on mount and periodically
+  // Load sync status on mount and periodically (Electron mode only)
   useEffect(() => {
+    // Don't load sync status in web mode
+    if (!isElectronMode()) {
+      return
+    }
+
     const loadSyncStatus = async () => {
       try {
         const result = await (window as any).electron.settingsPersistence.getSyncStatus()
@@ -41,6 +50,11 @@ export function SyncStatus() {
   }, [])
 
   const handleManualSync = async () => {
+    // Don't attempt sync in web mode
+    if (!isElectronMode()) {
+      return
+    }
+
     setIsManualSyncing(true)
     try {
       const result = await (window as any).electron.settingsPersistence.sync()
@@ -114,6 +128,19 @@ export function SyncStatus() {
     return `${days}d ago`
   }
 
+  // Web mode: show minimal UI indicating sync is unavailable
+  if (!isElectronMode()) {
+    return (
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="gap-1">
+          <CloudOff className="h-4 w-4 text-gray-500" />
+          <span className="text-xs text-muted-foreground">Web mode</span>
+        </Badge>
+      </div>
+    )
+  }
+
+  // Electron mode: show full sync status UI
   return (
     <div className="flex items-center gap-2">
       <Badge variant={getStatusVariant()} className="gap-1">

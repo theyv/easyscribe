@@ -8,6 +8,7 @@ This file tracks the project's progress using a task list format.
 ## Completed Tasks
 
 - Memory Bank initialization (2026-01-01 16:21:15)
+- Issue #12: System Tray Icon Fix - Added fallback icon generation when PNG files are missing (2026-01-02 00:01:00)
 
 ## Current Tasks
 

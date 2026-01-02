@@ -1,11 +1,1 @@
-{
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@playwright/mcp@0.0.38"
-      ]
-    }
-  }
-}
+{"mcpServers":{"playwright":{"command":"npx","args":["-y","@playwright/mcp@0.0.38"],"alwaysAllow":["browser_navigate","browser_close","browser_resize","browser_console_messages","browser_handle_dialog","browser_evaluate","browser_file_upload","browser_fill_form","browser_install","browser_press_key","browser_type","browser_navigate_back","browser_network_requests","browser_take_screenshot","browser_snapshot","browser_click","browser_drag","browser_hover","browser_select_option","browser_tabs","browser_wait_for"]},"supabase":{"command":"npx","args":["-y","@supabase/mcp-server-supabase@0.5.5","--access-token","sbp_1003420c1296c8ca4b3cdbc4c4670f513d7827e4"],"alwaysAllow":["list_tables","execute_sql","search_docs","list_organizations","get_organization","get_project","get_cost","confirm_cost","create_project","pause_project","restore_project","list_extensions","list_migrations","apply_migration","get_logs","get_advisors","get_project_url","get_anon_key","generate_typescript_types","list_edge_functions","get_edge_function","deploy_edge_function","create_branch","list_branches","delete_branch","merge_branch","reset_branch","rebase_branch","list_projects"]},"memory":{"command":"npx","args":["-y","@modelcontextprotocol/server-memory"]}}}

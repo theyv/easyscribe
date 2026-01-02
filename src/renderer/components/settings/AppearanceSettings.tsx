@@ -16,7 +16,7 @@ const ACCENT_COLORS = [
 
 export function AppearanceSettings() {
   const { settings, updateSetting } = useSettings()
-  const { setTheme } = useTheme()
+  const { setTheme, setAccentColor } = useTheme()
 
   const handleThemeChange = (value: 'light' | 'dark' | 'system') => {
     updateSetting('theme', value)
@@ -25,6 +25,7 @@ export function AppearanceSettings() {
 
   const handleAccentColorChange = (color: 'violet' | 'blue' | 'green' | 'orange' | 'pink' | 'red') => {
     updateSetting('accentColor', color)
+    setAccentColor(color)
   }
 
   return (

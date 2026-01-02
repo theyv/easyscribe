@@ -165,8 +165,8 @@ function setupSettingsIpcHandlers() {
   // Get all settings
   ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_ALL, async () => {
     try {
-      // TODO: Load from database
-      return { success: true, data: DEFAULT_SETTINGS }
+      const settings = await loadSettings()
+      return { success: true, data: settings }
     } catch (error) {
       return {
         success: false,
@@ -178,8 +178,8 @@ function setupSettingsIpcHandlers() {
   // Get single setting
   ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, async (_event, key: string) => {
     try {
-      // TODO: Load from database
-      const value = DEFAULT_SETTINGS[key as keyof typeof DEFAULT_SETTINGS]
+      const settings = await loadSettings()
+      const value = settings[key as keyof typeof settings]
       return { success: true, data: value }
     } catch (error) {
       return {
@@ -192,9 +192,9 @@ function setupSettingsIpcHandlers() {
   // Update settings
   ipcMain.handle(IPC_CHANNELS.SETTINGS_UPDATE, async (_event, updates: Record<string, unknown>) => {
     try {
-      // TODO: Save to database
+      const result = await saveSettings(updates)
       console.log('Settings updated:', updates)
-      return { success: true, data: updates }
+      return { success: result.success, data: updates }
     } catch (error) {
       return {
         success: false,
@@ -206,8 +206,8 @@ function setupSettingsIpcHandlers() {
   // Reset settings
   ipcMain.handle(IPC_CHANNELS.SETTINGS_RESET, async () => {
     try {
-      // TODO: Reset in database
-      return { success: true, data: DEFAULT_SETTINGS }
+      const result = await resetSettings()
+      return { success: result.success, data: DEFAULT_SETTINGS }
     } catch (error) {
       return {
         success: false,
@@ -912,6 +912,7 @@ function setupPythonIpcHandlers() {
  */
 function initializeSystemTray() {
   try {
+    console.log('Initializing system tray...')
     createTray({
       onOpenInterface: () => {
         if (mainWindow) {
@@ -950,9 +951,10 @@ function initializeSystemTray() {
         app.quit()
       }
     })
-    console.log('System tray initialized')
+    console.log('System tray initialized successfully')
   } catch (error) {
     console.error('Failed to initialize system tray:', error)
+    // Continue app execution even if tray fails
   }
 }
 

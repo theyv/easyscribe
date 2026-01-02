@@ -1,6 +1,6 @@
-import { app, Menu, Tray, nativeImage, BrowserWindow } from 'electron'
+import { Menu, Tray, nativeImage, NativeImage } from 'electron'
 import path from 'path'
-import { IPC_CHANNELS } from '../../src/shared/ipc-channels'
+import fs from 'fs'
 
 export type TrayState = 'idle' | 'recording' | 'processing' | 'error'
 
@@ -24,27 +24,40 @@ class TrayManager {
    * Create system tray
    */
   createTray(options: TrayOptions = {}): void {
-    this.options = options
+    try {
+      this.options = options
 
-    // Get icon path based on platform
-    const iconPath = this.getIconPath('tray-idle')
+      // Get tray icon (with fallback if file doesn't exist)
+      const icon = this.getTrayIcon('idle')
+      
+      if (icon.isEmpty()) {
+        console.error('Failed to create tray icon: icon is empty')
+        return
+      }
 
-    // Create native image from icon
-    const icon = nativeImage.createFromPath(iconPath)
+      // Create tray
+      this.tray = new Tray(icon)
+      console.log('System tray created successfully')
 
-    // Create tray
-    this.tray = new Tray(icon)
+      // Set initial tooltip
+      this.tray.setToolTip('EasyScribe - Ready to record')
 
-    // Set initial tooltip
-    this.tray.setToolTip('EasyScribe - Ready to record')
+      // Build initial context menu
+      this.updateContextMenu()
 
-    // Build initial context menu
-    this.updateContextMenu()
-
-    // Handle tray click
-    this.tray.on('click', () => {
-      this.options.onOpenInterface?.()
-    })
+      // Handle tray click
+      this.tray.on('click', () => {
+        this.options.onOpenInterface?.()
+      })
+      
+      // Also handle double-click for better UX
+      this.tray.on('double-click', () => {
+        this.options.onOpenInterface?.()
+      })
+    } catch (error) {
+      console.error('Failed to create system tray:', error)
+      throw error
+    }
   }
 
   /**
@@ -55,11 +68,8 @@ class TrayManager {
 
     if (!this.tray) return
 
-    // Get icon path for current state
-    const iconPath = this.getIconPath(`tray-${state}`)
-
-    // Update icon
-    const icon = nativeImage.createFromPath(iconPath)
+    // Get tray icon (with fallback if file doesn't exist)
+    const icon = this.getTrayIcon(state)
     this.tray.setImage(icon)
 
     // Update tooltip based on state
@@ -101,6 +111,94 @@ class TrayManager {
       // Production: use path from asar unpacked resources
       return path.join(process.resourcesPath, 'icons', `${iconName}.png`)
     }
+  }
+
+  /**
+   * Get color for a given state
+   */
+  private getColorForState(state: TrayState): { r: number; g: number; b: number; a: number } {
+    switch (state) {
+      case 'idle':
+        return { r: 139, g: 92, b: 246, a: 255 } // Violet (#8b5cf6)
+      case 'recording':
+        return { r: 239, g: 68, b: 68, a: 255 } // Red (#ef4444)
+      case 'processing':
+        return { r: 59, g: 130, b: 246, a: 255 } // Blue (#3b82f6)
+      case 'error':
+        return { r: 245, g: 158, b: 11, a: 255 } // Orange (#f59e0b)
+      default:
+        return { r: 139, g: 92, b: 246, a: 255 } // Default violet
+    }
+  }
+
+  /**
+   * Create a fallback icon programmatically if icon file doesn't exist
+   */
+  private createFallbackIcon(state: TrayState): NativeImage {
+    const size = 64 // Larger size for better visibility on high-DPI displays
+    const color = this.getColorForState(state)
+    
+    // Create a simple colored circle icon
+    const buffer = Buffer.alloc(size * size * 4)
+    
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const index = (y * size + x) * 4
+        
+        // Create a circular icon
+        const centerX = size / 2
+        const centerY = size / 2
+        const distance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2)
+        const radius = size / 2 - 4
+        
+        if (distance <= radius) {
+          // Inside circle - use state color
+          buffer[index] = color.r     // R
+          buffer[index + 1] = color.g   // G
+          buffer[index + 2] = color.b   // B
+          buffer[index + 3] = 255       // A (fully opaque)
+        } else {
+          // Outside circle - transparent
+          buffer[index] = 0
+          buffer[index + 1] = 0
+          buffer[index + 2] = 0
+          buffer[index + 3] = 0
+        }
+      }
+    }
+    
+    // Create image from buffer and resize to appropriate tray size
+    const image = nativeImage.createFromBuffer(buffer, { width: size, height: size })
+    
+    // Resize to standard tray icon size (16x16 is standard for most platforms)
+    return image.resize({ width: 16, height: 16 })
+  }
+
+  /**
+   * Get tray icon (with fallback if file doesn't exist)
+   */
+  private getTrayIcon(state: TrayState): NativeImage {
+    const iconName = `tray-${state}`
+    const iconPath = this.getIconPath(iconName)
+    
+    console.log(`Loading tray icon for state '${state}' from path: ${iconPath}`)
+    
+    // Check if icon file exists
+    if (fs.existsSync(iconPath)) {
+      const icon = nativeImage.createFromPath(iconPath)
+      if (!icon.isEmpty()) {
+        console.log(`Successfully loaded tray icon from file: ${iconPath}`)
+        return icon
+      } else {
+        console.warn(`Icon file exists but is empty: ${iconPath}`)
+      }
+    } else {
+      console.warn(`Tray icon file not found at: ${iconPath}`)
+    }
+    
+    // Fallback to programmatically created icon
+    console.log(`Using fallback icon for state '${state}'`)
+    return this.createFallbackIcon(state)
   }
 
   /**

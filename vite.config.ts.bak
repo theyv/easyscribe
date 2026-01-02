@@ -1,0 +1,52 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import path from 'path'
+
+export default defineConfig({
+  root: '.',
+  resolve: {
+    alias: [
+      {
+        find: /^@\/(.*)$/,
+        replacement: path.resolve(__dirname, './src/$1')
+      },
+      {
+        find: /^@shared\/(.*)$/,
+        replacement: path.resolve(__dirname, './src/shared/$1')
+      },
+      {
+        find: /^@renderer\/(.*)$/,
+        replacement: path.resolve(__dirname, './src/renderer/$1')
+      },
+      {
+        find: /^@components\/(.*)$/,
+        replacement: path.resolve(__dirname, './src/renderer/components/$1')
+      },
+      {
+        find: /^@pages\/(.*)$/,
+        replacement: path.resolve(__dirname, './src/renderer/pages/$1')
+      },
+      {
+        find: /^@hooks\/(.*)$/,
+        replacement: path.resolve(__dirname, './src/renderer/hooks/$1')
+      },
+      {
+        find: /^@stores\/(.*)$/,
+        replacement: path.resolve(__dirname, './src/renderer/stores/$1')
+      },
+      {
+        find: /^@lib\/(.*)$/,
+        replacement: path.resolve(__dirname, './src/renderer/lib/$1')
+      },
+      {
+        find: /^@styles\/(.*)$/,
+        replacement: path.resolve(__dirname, './src/renderer/styles/$1')
+      }
+    ]
+  },
+  plugins: [react()],
+  server: {
+    port: 5173,
+    strictPort: true
+  }
+})

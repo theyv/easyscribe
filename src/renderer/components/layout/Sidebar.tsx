@@ -113,7 +113,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }
 
   const renderNavItem = (item: NavItem, level = 0) => {
-    const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + "/")
+    // Use exact path matching for navigation items to ensure only one is active at a time
+    const isActive = location.pathname === item.path
     const hasChildren = item.children && item.children.length > 0
     const isExpanded = expandedFolders.has(item.id)
 

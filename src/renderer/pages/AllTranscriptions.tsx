@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { TranscriptionList, SortOption } from "../components/transcriptions/TranscriptionList"
 import { Input } from "../components/ui/input"
 import { Button } from "../components/ui/button"
@@ -11,7 +11,12 @@ export const AllTranscriptions: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<"all" | "recording" | "import" | "upload">("all")
   const [sortBy, setSortBy] = useState<SortOption>("date-desc")
 
-  const { transcriptions, isLoading } = useTranscriptions()
+  const { transcriptions, isLoading, fetchTranscriptions } = useTranscriptions()
+
+  // Fetch transcriptions on mount
+  useEffect(() => {
+    fetchTranscriptions()
+  }, [fetchTranscriptions])
 
   // Filter transcriptions
   const filteredTranscriptions = transcriptions.filter((t) => {

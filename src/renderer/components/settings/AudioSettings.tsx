@@ -13,22 +13,69 @@ interface AudioDevice {
   isDefault?: boolean
 }
 
+// Check if running in Electron mode
+function isElectronMode(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).electron?.recording
+}
+
 export function AudioSettings() {
   const { settings, updateSetting } = useSettings()
   const [audioLevel, setAudioLevel] = useState(0)
   const [isTesting, setIsTesting] = useState(false)
   const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([])
+  const [isLoadingDevices, setIsLoadingDevices] = useState(false)
 
   // Load audio devices on mount
   useEffect(() => {
     const loadAudioDevices = async () => {
       try {
-        const result = await (window as any).electron.recording.getDevices()
-        if (result.success && result.data) {
-          setAudioDevices(result.data)
+        setIsLoadingDevices(true)
+        
+        // Web mode: use Web Audio API
+        if (!isElectronMode()) {
+          // First, request microphone permission to ensure devices are enumerated
+          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            try {
+              // Request temporary access to get permission
+              const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+              // Stop the stream immediately - we just needed permission
+              stream.getTracks().forEach(track => track.stop())
+            } catch (permError) {
+              console.warn('Microphone permission denied or not yet granted:', permError)
+              // Continue anyway - devices might still be available
+            }
+          }
+
+          // Enumerate audio input devices
+          if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+            const devices = await navigator.mediaDevices.enumerateDevices()
+            const audioInputs = devices
+              .filter(device => device.kind === 'audioinput')
+              .map(device => ({
+                id: device.deviceId,
+                name: device.label || `Microphone ${device.deviceId.slice(0, 8)}...`,
+                isDefault: device.deviceId === 'default'
+              }))
+            
+            setAudioDevices(audioInputs)
+            console.log(`Loaded ${audioInputs.length} audio input devices in web mode`)
+          } else {
+            console.error('MediaDevices API not available')
+          }
+        }
+        // Electron mode: use Electron API
+        else {
+          const result = await (window as any).electron.recording.getDevices()
+          if (result.success && result.data) {
+            setAudioDevices(result.data)
+          } else {
+            console.error('Failed to load audio devices from Electron:', result.error)
+          }
         }
       } catch (error) {
         console.error('Failed to load audio devices:', error)
+      } finally {
+        setIsLoadingDevices(false)
       }
     }
     loadAudioDevices()
@@ -36,32 +83,79 @@ export function AudioSettings() {
 
   const handleTestMicrophone = async () => {
     setIsTesting(true)
+    setAudioLevel(0)
+    
     try {
-      // Start microphone test via IPC
-      const result = await (window as any).electron.recording.testMicrophone(settings.selectedMicrophone)
-      
-      if (result.success) {
-        // Monitor audio level during test
-        const interval = setInterval(async () => {
-          try {
-            const levelResult = await (window as any).electron.recording.getAudioLevel()
-            if (levelResult.success && levelResult.data) {
-              setAudioLevel(levelResult.data.level)
-            }
-          } catch (error) {
-            console.error('Failed to get audio level:', error)
+      // Web mode: use Web Audio API
+      if (!isElectronMode()) {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.error('MediaDevices API not available')
+          setIsTesting(false)
+          return
+        }
+
+        // Request microphone access
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            deviceId: settings.selectedMicrophone ? { exact: settings.selectedMicrophone } : undefined
           }
+        })
+
+        // Create audio context and analyzer
+        const audioContext = new AudioContext()
+        const source = audioContext.createMediaStreamSource(stream)
+        const analyzer = audioContext.createAnalyser()
+        analyzer.fftSize = 256
+        source.connect(analyzer)
+
+        const dataArray = new Uint8Array(analyzer.frequencyBinCount)
+        
+        // Monitor audio level
+        const interval = setInterval(() => {
+          analyzer.getByteFrequencyData(dataArray)
+          // Calculate average volume
+          const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
+          // Normalize to 0-100 range
+          const level = Math.min(100, (average / 128) * 100)
+          setAudioLevel(level)
         }, 100)
 
         // Stop test after 3 seconds
         setTimeout(() => {
           clearInterval(interval)
+          stream.getTracks().forEach(track => track.stop())
+          audioContext.close()
           setIsTesting(false)
           setAudioLevel(0)
         }, 3000)
-      } else {
-        setIsTesting(false)
-        console.error('Microphone test failed:', result.error)
+      }
+      // Electron mode: use Electron API
+      else {
+        const result = await (window as any).electron.recording.testMicrophone(settings.selectedMicrophone)
+        
+        if (result.success) {
+          // Monitor audio level during test
+          const interval = setInterval(async () => {
+            try {
+              const levelResult = await (window as any).electron.recording.getAudioLevel()
+              if (levelResult.success && levelResult.data) {
+                setAudioLevel(levelResult.data.level)
+              }
+            } catch (error) {
+              console.error('Failed to get audio level:', error)
+            }
+          }, 100)
+
+          // Stop test after 3 seconds
+          setTimeout(() => {
+            clearInterval(interval)
+            setIsTesting(false)
+            setAudioLevel(0)
+          }, 3000)
+        } else {
+          setIsTesting(false)
+          console.error('Microphone test failed:', result.error)
+        }
       }
     } catch (error) {
       console.error('Failed to test microphone:', error)
@@ -95,9 +189,17 @@ export function AudioSettings() {
             <Select
               value={settings.selectedMicrophone}
               onValueChange={(value) => updateSetting('selectedMicrophone', value)}
+              disabled={isLoadingDevices}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select microphone..." />
+                {isLoadingDevices ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Loading devices...</span>
+                  </div>
+                ) : (
+                  <SelectValue placeholder="Select microphone..." />
+                )}
               </SelectTrigger>
               <SelectContent>
                 {audioDevices.length > 0 ? (
@@ -108,7 +210,7 @@ export function AudioSettings() {
                   ))
                 ) : (
                   <SelectItem value="default" disabled>
-                    No devices available
+                    {isLoadingDevices ? 'Loading devices...' : 'No devices available'}
                   </SelectItem>
                 )}
               </SelectContent>

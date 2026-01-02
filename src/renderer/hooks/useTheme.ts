@@ -1,10 +1,10 @@
 import { useTheme as useThemeContext } from "@/components/providers/ThemeProvider"
 
 export { useTheme as useThemeContext }
-export type { Theme } from "@/components/providers/ThemeProvider"
+export type { Theme, AccentColor } from "@/components/providers/ThemeProvider"
 
 export const useTheme = () => {
-  const { theme, setTheme } = useThemeContext()
+  const { theme, accentColor, setTheme, setAccentColor } = useThemeContext()
 
   const toggleTheme = () => {
     if (theme === "light") {
@@ -18,7 +18,9 @@ export const useTheme = () => {
 
   return {
     theme,
+    accentColor,
     setTheme,
+    setAccentColor,
     toggleTheme,
   }
 }

@@ -4,9 +4,24 @@ import path from 'path'
 
 export default defineConfig({
   main: {
+    build: {
+      rollupOptions: {
+        input: {
+          index: path.resolve(__dirname, 'electron/main.ts')
+        },
+        external: ['electron']
+      }
+    },
     plugins: [externalizeDepsPlugin()]
   },
   preload: {
+    build: {
+      rollupOptions: {
+        input: {
+          index: path.resolve(__dirname, 'electron/preload.ts')
+        }
+      }
+    },
     plugins: [externalizeDepsPlugin()]
   },
   renderer: {

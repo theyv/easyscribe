@@ -5,21 +5,31 @@ import { Label } from '../ui/label'
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
-import { Info, CheckCircle2, AlertCircle, Download, RefreshCw } from 'lucide-react'
+import { Info, CheckCircle2, AlertCircle, Download, RefreshCw, ExternalLink } from 'lucide-react'
 
 export function EngineSettings() {
   const { settings, updateSetting } = useSettings()
   const [pythonAvailable, setPythonAvailable] = useState<boolean>(false)
   const [pythonStatus, setPythonStatus] = useState<any>(null)
   const [checkingStatus, setCheckingStatus] = useState(false)
+  const [isWebMode, setIsWebMode] = useState<boolean>(false)
 
   useEffect(() => {
-    checkPythonStatus()
+    // Check if we're in web mode (Electron API not available)
+    if (typeof window !== 'undefined' && !window.electron) {
+      setIsWebMode(true)
+    } else {
+      checkPythonStatus()
+    }
   }, [])
 
   const checkPythonStatus = async () => {
     setCheckingStatus(true)
     try {
+      if (!window.electron?.python) {
+        setPythonAvailable(false)
+        return
+      }
       const availableResult = await window.electron.python.isAvailable()
       setPythonAvailable(availableResult.data?.available || false)
       
@@ -36,6 +46,8 @@ export function EngineSettings() {
   }
 
   const isLocalEngineAvailable = pythonAvailable && pythonStatus?.available !== false
+  const isModelAvailable = pythonStatus?.status === 'ready'
+  const modelDownloadUrl = 'https://huggingface.co/guillaumekln/faster-whisper-large-v3'
 
   return (
     <div className="space-y-6">
@@ -78,12 +90,18 @@ export function EngineSettings() {
               <RadioGroupItem
                 value="local"
                 id="live-local"
-                disabled={!isLocalEngineAvailable}
+                disabled={!isLocalEngineAvailable && !isWebMode}
               />
               <div className="flex-1 space-y-2">
                 <Label htmlFor="live-local" className="flex items-center gap-2">
                   <span className="font-medium">Local Engine</span>
                   <Badge variant="secondary">Offline</Badge>
+                  {isWebMode && (
+                    <Badge variant="outline" className="gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Web Mode
+                    </Badge>
+                  )}
                   {pythonStatus?.status === 'ready' && (
                     <Badge variant="default" className="gap-1">
                       <CheckCircle2 className="h-3 w-3" />
@@ -96,7 +114,7 @@ export function EngineSettings() {
                       Error
                     </Badge>
                   )}
-                  {!pythonAvailable && (
+                  {!pythonAvailable && !isWebMode && (
                     <Badge variant="outline" className="gap-1">
                       <AlertCircle className="h-3 w-3" />
                       Not Available
@@ -105,12 +123,39 @@ export function EngineSettings() {
                 </Label>
                 <p className="text-sm text-muted-foreground">
                   Runs entirely on your device. No internet connection required.
-                  {!pythonAvailable && (
+                  {!pythonAvailable && !isWebMode && (
                     <span className="block mt-1 text-orange-600 dark:text-orange-400">
                       Requires Python and faster-whisper to be installed.
                     </span>
                   )}
                 </p>
+                
+                {/* Model Download Suggestion */}
+                {settings.liveTranscriptionEngine === 'local' && !isModelAvailable && (
+                  <div className="mt-3 p-3 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <p className="text-sm font-medium text-orange-800 dark:text-orange-300">
+                          Model not found
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          The Whisper model needs to be downloaded to use local transcription.
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7 gap-1"
+                          onClick={() => window.open(modelDownloadUrl, '_blank')}
+                        >
+                          <Download className="h-3 w-3" />
+                          Download Model
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

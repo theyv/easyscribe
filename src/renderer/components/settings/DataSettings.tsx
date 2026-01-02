@@ -1,24 +1,88 @@
 import { useState } from 'react'
 import { useSettings } from '../../hooks/useSettings'
+import { useTranscriptions } from '../../hooks/useTranscriptions'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Download, Trash2, AlertTriangle, Loader2 } from 'lucide-react'
+import { formatTranscriptionsAsTxt, formatTranscriptionsAsSrt } from '../../lib/formatters'
+import { supabase } from '../../lib/supabase'
+import type { Transcription } from '@/shared/types'
 
 export function DataSettings() {
   const { resetSettings } = useSettings()
+  const { transcriptions } = useTranscriptions()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [isClearing, setIsClearing] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const handleExportAll = async () => {
+  const handleExportAll = async (format: 'txt' | 'srt' = 'txt') => {
     setIsExporting(true)
     try {
-      // TODO: Implement actual export functionality
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      // Fetch all transcriptions from Supabase
+      const { data: transcriptionsData, error } = await supabase
+        .from('transcriptions')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      // Convert Supabase snake_case to camelCase for Transcription type
+      const allTranscriptions: Transcription[] = (transcriptionsData || []).map((t) => ({
+        id: t.id,
+        deviceId: t.device_id,
+        folderId: t.folder_id,
+        title: t.title,
+        content: t.content,
+        sourceFilename: t.source_filename,
+        audioPath: t.audio_path,
+        duration: t.duration,
+        type: t.type,
+        language: t.language,
+        metadata: t.metadata,
+        synced: t.synced,
+        createdAt: t.created_at,
+        updatedAt: t.updated_at,
+        tags: t.tags
+      }))
+
+      // Handle empty state
+      if (allTranscriptions.length === 0) {
+        alert('No transcriptions to export.')
+        return
+      }
+
+      // Format transcriptions based on selected format
+      let content: string
+      let filename: string
+      let mimeType: string
+
+      if (format === 'srt') {
+        content = formatTranscriptionsAsSrt(allTranscriptions)
+        filename = `transcriptions-${new Date().toISOString().slice(0, 10)}.srt`
+        mimeType = 'text/plain'
+      } else {
+        content = formatTranscriptionsAsTxt(allTranscriptions)
+        filename = `transcriptions-${new Date().toISOString().slice(0, 10)}.txt`
+        mimeType = 'text/plain'
+      }
+
+      // Create Blob and trigger download
+      const blob = new Blob([content], { type: mimeType })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      console.log(`Exported ${allTranscriptions.length} transcriptions as ${format.toUpperCase()}`)
     } catch (error) {
       console.error('Export failed:', error)
+      alert('Failed to export transcriptions. Please try again.')
     } finally {
       setIsExporting(false)
     }
@@ -70,24 +134,48 @@ export function DataSettings() {
             Export all your transcriptions and settings
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Button
-            variant="outline"
-            onClick={handleExportAll}
-            disabled={isExporting}
-          >
-            {isExporting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Exporting...
-              </>
-            ) : (
-              <>
-                <Download className="mr-2 h-4 w-4" />
-                Export All Transcriptions
-              </>
-            )}
-          </Button>
+        <CardContent className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => handleExportAll('txt')}
+              disabled={isExporting}
+              className="flex-1"
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export as TXT
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleExportAll('srt')}
+              disabled={isExporting}
+              className="flex-1"
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export as SRT
+                </>
+              )}
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Export all your transcriptions in TXT or SRT format
+          </p>
         </CardContent>
       </Card>
 

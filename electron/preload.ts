@@ -132,6 +132,11 @@ contextBridge.exposeInMainWorld('electron', {
       const listener = (_event: Electron.IpcRendererEvent, hotkeyType: string) => callback(hotkeyType)
       ipcRenderer.on(IPC_CHANNELS.RECORDING_HOTKEY_RELEASED, listener)
       return () => ipcRenderer.removeListener(IPC_CHANNELS.RECORDING_HOTKEY_RELEASED, listener)
+    },
+    onTranscriptionComplete: (callback: (data: any) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data)
+      ipcRenderer.on('recording:transcription-complete', listener)
+      return () => ipcRenderer.removeListener('recording:transcription-complete', listener)
     }
   },
 
