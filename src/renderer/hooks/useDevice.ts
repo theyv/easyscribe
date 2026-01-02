@@ -27,9 +27,24 @@ function isElectronMode(): boolean {
   return typeof window !== 'undefined' && !!(window as any).electron?.device
 }
 
-// Generate a unique device ID
-function generateDeviceId(): string {
+// Generate a UUID v4
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
+// Generate a unique device identifier (for device_identifier field)
+function generateDeviceIdentifier(): string {
   return `web_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
+}
+
+// Check if a string is a valid UUID v4
+function isValidUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(str)
 }
 
 // Get or create device ID from localStorage
@@ -37,11 +52,25 @@ function getOrCreateDeviceId(): string {
   if (typeof window === 'undefined') return 'unknown'
   
   let deviceId = localStorage.getItem(DEVICE_ID_KEY)
-  if (!deviceId) {
-    deviceId = generateDeviceId()
+  
+  // If no device ID or the stored ID is not a valid UUID, generate a new one
+  if (!deviceId || !isValidUUID(deviceId)) {
+    deviceId = generateUUID()
     localStorage.setItem(DEVICE_ID_KEY, deviceId)
   }
   return deviceId
+}
+
+// Get or create device identifier from localStorage
+function getOrCreateDeviceIdentifier(): string {
+  if (typeof window === 'undefined') return 'unknown'
+  
+  let deviceIdentifier = localStorage.getItem('easyscribe_device_identifier')
+  if (!deviceIdentifier) {
+    deviceIdentifier = generateDeviceIdentifier()
+    localStorage.setItem('easyscribe_device_identifier', deviceIdentifier)
+  }
+  return deviceIdentifier
 }
 
 // Get device name from localStorage
@@ -99,6 +128,7 @@ function parseUserAgent(): { deviceType: string; osVersion: string } {
 // Create device info for web mode
 function createWebDeviceInfo(): Device {
   const deviceId = getOrCreateDeviceId()
+  const deviceIdentifier = getOrCreateDeviceIdentifier()
   const deviceName = getDeviceName()
   const createdAt = getDeviceCreatedAt()
   const { deviceType, osVersion } = parseUserAgent()
@@ -106,14 +136,14 @@ function createWebDeviceInfo(): Device {
 
   return {
     id: deviceId,
-    deviceIdentifier: deviceId,
+    deviceIdentifier: deviceIdentifier,
     deviceName,
     deviceType,
     osVersion,
     appVersion: 'web',
     lastSeenAt: now,
-    createdAt,
-    updatedAt: now
+    created_at: createdAt,
+    updated_at: now
   }
 }
 
@@ -183,7 +213,7 @@ export function useDevice(): UseDeviceReturn {
         const updatedInfo: Device = {
           ...currentInfo,
           deviceName: name,
-          updatedAt: new Date().toISOString()
+          updated_at: new Date().toISOString()
         }
         setDeviceInfo(updatedInfo)
         updateStoreDeviceName(name)

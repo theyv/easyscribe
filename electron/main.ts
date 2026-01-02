@@ -16,13 +16,14 @@ import {
 } from './modules/notificationManager'
 import { createTray, updateTrayState, updateRecentTranscriptions, destroyTray, TrayState } from './modules/tray'
 import { enableAutoStart, disableAutoStart, isAutoStartEnabled } from './modules/autoStart'
-import { loadSettings, saveSettings, syncSettings, getSyncStatus } from './modules/settingsPersistence'
+import { loadSettings, saveSettings, syncSettings, getSyncStatus, resetSettings } from './modules/settingsPersistence'
 import {
   startPythonProcess,
   stopPythonProcess,
   transcribeWithPython,
   getPythonStatus,
-  isPythonAvailable
+  isPythonAvailable,
+  downloadModel
 } from './modules/pythonBridge'
 import { IPC_CHANNELS } from '../src/shared/ipc-channels'
 import { DEFAULT_SETTINGS } from '../src/shared/defaults'
@@ -68,7 +69,6 @@ function createWindow() {
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173')
-    mainWindow.webContents.openDevTools()
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
@@ -224,15 +224,9 @@ function setupFileTranscriptionIpcHandlers() {
   // Transcribe a file
   ipcMain.handle(IPC_CHANNELS.FILE_TRANSCRIBE, async (_event, filePath: string, options: Record<string, unknown> = {}) => {
     try {
-      // Get API key from settings (TODO: Load from database)
-      const groqApiKey = process.env.GROQ_API_KEY || ''
-
-      if (!groqApiKey) {
-        return {
-          success: false,
-          error: 'Groq API key not configured. Please add it in settings.'
-        }
-      }
+      // Load settings to get the file transcription engine
+      const settings = await loadSettings()
+      const engine = settings.fileTranscriptionEngine || 'groq'
 
       // Process file first (extract audio from video, convert to WAV)
       const processedFile = await processFile(filePath, {
@@ -240,25 +234,76 @@ function setupFileTranscriptionIpcHandlers() {
         channels: 1
       })
 
-      // Transcribe using Groq API
-      const result = await transcribeFile(processedFile.outputPath, groqApiKey, {
-        language: options.language as string | undefined,
-        prompt: options.prompt as string | undefined,
-        responseFormat: options.responseFormat as any,
-        temperature: options.temperature as number | undefined,
-        timestampGranularities: options.timestampGranularities as ('word' | 'segment')[] | undefined
-      })
+      // Route to appropriate transcription engine
+      if (engine === 'local') {
+        // Use Python local engine
+        if (!isPythonAvailable()) {
+          return {
+            success: false,
+            error: 'Python is not available. Please ensure Python is installed and the transcriber script exists.'
+          }
+        }
 
-      return {
-        success: true,
-        data: {
-          text: result.text,
-          language: result.language,
-          duration: result.duration,
-          segments: result.segments,
-          words: result.words,
-          processedPath: processedFile.outputPath,
-          originalPath: filePath
+        // Ensure Python process is running
+        const pythonStatus = getPythonStatus()
+        if (!pythonStatus || pythonStatus.status !== 'ready') {
+          const started = await startPythonProcess()
+          if (!started) {
+            return {
+              success: false,
+              error: 'Failed to start Python process. Please check the Python setup.'
+            }
+          }
+        }
+
+        // Transcribe using Python
+        const result = await transcribeWithPython(processedFile.outputPath, {
+          language: options.language as string | undefined,
+          task: options.task as 'transcribe' | 'translate' || 'transcribe'
+        })
+
+        return {
+          success: true,
+          data: {
+            text: result.text,
+            language: result.language,
+            duration: result.duration,
+            segments: result.segments,
+            processedPath: processedFile.outputPath,
+            originalPath: filePath
+          }
+        }
+      } else {
+        // Use Groq engine (default)
+        const groqApiKey = settings.groqApiKey || ''
+
+        if (!groqApiKey) {
+          return {
+            success: false,
+            error: 'Groq API key not configured. Please add it in settings.'
+          }
+        }
+
+        // Transcribe using Groq API
+        const result = await transcribeFile(processedFile.outputPath, groqApiKey, {
+          language: options.language as string | undefined,
+          prompt: options.prompt as string | undefined,
+          responseFormat: options.responseFormat as any,
+          temperature: options.temperature as number | undefined,
+          timestampGranularities: options.timestampGranularities as ('word' | 'segment')[] | undefined
+        })
+
+        return {
+          success: true,
+          data: {
+            text: result.text,
+            language: result.language,
+            duration: result.duration,
+            segments: result.segments,
+            words: result.words,
+            processedPath: processedFile.outputPath,
+            originalPath: filePath
+          }
         }
       }
     } catch (error) {
@@ -347,6 +392,11 @@ function setupFileOutputIpcHandlers() {
  * Setup IPC handlers for recording operations
  */
 function setupRecordingIpcHandlers() {
+  // Listen for audio level events from audio capture
+  audioCapture.on('audio-level', ({ level }: { level: number }) => {
+    mainWindow?.webContents.send(IPC_CHANNELS.RECORDING_AUDIO_LEVEL_UPDATED, { level })
+  })
+
   // Start recording
   ipcMain.handle(IPC_CHANNELS.RECORDING_START, async (_event, mode?: string) => {
     try {
@@ -381,17 +431,9 @@ function setupRecordingIpcHandlers() {
 
         // Transcribe the audio buffer
         try {
-          // Get API key from settings (TODO: Load from database)
-          const groqApiKey = process.env.GROQ_API_KEY || ''
-
-          if (!groqApiKey) {
-            showErrorNotification('Groq API key not configured. Please add it in settings.')
-            mainWindow?.webContents.send(IPC_CHANNELS.RECORDING_STATE_CHANGED, 'error')
-            return {
-              success: false,
-              error: 'Groq API key not configured. Please add it in settings.'
-            }
-          }
+          // Load settings to get the live transcription engine
+          const settings = await loadSettings()
+          const engine = settings.liveTranscriptionEngine || 'local'
 
           // Save buffer to temporary file
           const tempDir = app.getPath('temp')
@@ -399,10 +441,57 @@ function setupRecordingIpcHandlers() {
           await fs.writeFile(tempFilePath, result.data.audioBuffer)
 
           try {
-            // Transcribe using Groq API
-            const transcriptionResult = await transcribeFile(tempFilePath, groqApiKey, {
-              language: 'en' // TODO: Get from settings
-            })
+            let transcriptionResult
+
+            // Route to appropriate transcription engine
+            if (engine === 'local') {
+              // Use Python local engine
+              if (!isPythonAvailable()) {
+                showErrorNotification('Python is not available. Please ensure Python is installed and the transcriber script exists.')
+                mainWindow?.webContents.send(IPC_CHANNELS.RECORDING_STATE_CHANGED, 'error')
+                return {
+                  success: false,
+                  error: 'Python is not available. Please ensure Python is installed and the transcriber script exists.'
+                }
+              }
+
+              // Ensure Python process is running
+              const pythonStatus = getPythonStatus()
+              if (!pythonStatus || pythonStatus.status !== 'ready') {
+                const started = await startPythonProcess()
+                if (!started) {
+                  showErrorNotification('Failed to start Python process. Please check the Python setup.')
+                  mainWindow?.webContents.send(IPC_CHANNELS.RECORDING_STATE_CHANGED, 'error')
+                  return {
+                    success: false,
+                    error: 'Failed to start Python process. Please check the Python setup.'
+                  }
+                }
+              }
+
+              // Transcribe using Python
+              transcriptionResult = await transcribeWithPython(tempFilePath, {
+                language: settings.language || 'en',
+                task: 'transcribe'
+              })
+            } else {
+              // Use Groq engine (default)
+              const groqApiKey = settings.groqApiKey || ''
+
+              if (!groqApiKey) {
+                showErrorNotification('Groq API key not configured. Please add it in settings.')
+                mainWindow?.webContents.send(IPC_CHANNELS.RECORDING_STATE_CHANGED, 'error')
+                return {
+                  success: false,
+                  error: 'Groq API key not configured. Please add it in settings.'
+                }
+              }
+
+              // Transcribe using Groq API
+              transcriptionResult = await transcribeFile(tempFilePath, groqApiKey, {
+                language: settings.language || 'en'
+              })
+            }
 
             // Insert text at cursor position
             const insertResult = await insertText(transcriptionResult.text)
@@ -905,6 +994,22 @@ function setupPythonIpcHandlers() {
       }
     }
   })
+
+  // Download model
+  ipcMain.handle(IPC_CHANNELS.PYTHON_DOWNLOAD_MODEL, async (event) => {
+    try {
+      const result = await downloadModel((progress) => {
+        // Send progress updates to renderer
+        mainWindow?.webContents.send('python:model-download-progress', progress)
+      })
+      return result
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to download model'
+      }
+    }
+  })
 }
 
 /**
@@ -974,50 +1079,127 @@ async function initializeAutoStart() {
 }
 
 /**
+ * Parse hotkey string (e.g., "CmdOrCtrl+Shift+Space") into HotkeyCombination
+ */
+function parseHotkeyString(hotkeyString: string): { key: string; modifiers: { ctrl?: boolean; shift?: boolean; alt?: boolean; meta?: boolean } } {
+  const parts = hotkeyString.split('+').map(p => p.toLowerCase().trim())
+  const modifiers: { ctrl?: boolean; shift?: boolean; alt?: boolean; meta?: boolean } = {}
+  let key = ''
+
+  for (const part of parts) {
+    if (part === 'cmdorctrl' || part === 'ctrl' || part === 'command') {
+      modifiers.ctrl = true
+      // On macOS, CmdOrCtrl means Cmd (meta), on Windows/Linux it means Ctrl only
+      if (process.platform === 'darwin') {
+        modifiers.meta = true
+      }
+    } else if (part === 'shift') {
+      modifiers.shift = true
+    } else if (part === 'alt') {
+      modifiers.alt = true
+    } else if (part === 'meta' || part === 'cmd') {
+      modifiers.meta = true
+    } else if (part === 'option') {
+      modifiers.alt = true
+    } else {
+      // This is key
+      key = part
+    }
+  }
+
+  return { key, modifiers }
+}
+
+/**
  * Initialize global shortcuts
  */
-function initializeGlobalShortcuts() {
+async function initializeGlobalShortcuts() {
   try {
-    // Register default hotkeys
-    const defaultHotkeys = {
-      pushToTalk: {
-        key: 'space',
-        modifiers: { ctrl: true, meta: true } // Ctrl+Space or Cmd+Space
-      },
-      toggle: {
-        key: 'space',
-        modifiers: { ctrl: true, shift: true, meta: true } // Ctrl+Shift+Space or Cmd+Shift+Space
-      }
+    console.log('[Hotkey Debug] Initializing global shortcuts...')
+    
+    // Load settings to get hotkey configuration
+    const settings = await loadSettings()
+    console.log('[Hotkey Debug] Settings loaded:', {
+      pushToTalkHotkey: settings.pushToTalkHotkey,
+      toggleRecordHotkey: settings.toggleRecordHotkey
+    })
+
+    // Parse hotkey strings from settings
+    const pushToTalk = parseHotkeyString(settings.pushToTalkHotkey || DEFAULT_SETTINGS.pushToTalkHotkey)
+    const toggle = parseHotkeyString(settings.toggleRecordHotkey || DEFAULT_SETTINGS.toggleRecordHotkey)
+    
+    console.log('[Hotkey Debug] Parsed hotkeys:', { pushToTalk, toggle })
+
+    const hotkeys = {
+      pushToTalk,
+      toggle
     }
     
-    globalShortcuts.registerHotkeys(defaultHotkeys)
+    console.log('[Hotkey Debug] Registering hotkeys with globalShortcuts module...')
+    globalShortcuts.registerHotkeys(hotkeys)
     
     // Listen for hotkey events
-    globalShortcuts.on('hotkey-pressed', (hotkeyType: string) => {
-      if (!mainWindow) return
+    globalShortcuts.on('hotkey-pressed', async (hotkeyType: string) => {
+      console.log('[Hotkey Debug] Hotkey pressed event received:', hotkeyType)
+      console.log('[Hotkey Debug] Current recording state:', audioCapture.isRecordingNow())
+      console.log('[Hotkey Debug] AudioCapture instance:', audioCapture)
       
+      if (!mainWindow) {
+        console.log('[Hotkey Debug] No mainWindow, skipping IPC send')
+        return
+      }
+      
+      console.log('[Hotkey Debug] Sending IPC event:', IPC_CHANNELS.RECORDING_HOTKEY_PRESSED, hotkeyType)
       mainWindow.webContents.send(IPC_CHANNELS.RECORDING_HOTKEY_PRESSED, hotkeyType)
       
       if (hotkeyType === 'pushToTalk') {
         // Start recording
-        audioCapture.startRecording()
-        mainWindow.webContents.send(IPC_CHANNELS.RECORDING_STATE_CHANGED, 'recording')
+        console.log('[Hotkey Debug] Starting recording for push-to-talk')
+        const result = await audioCapture.startRecording()
+        console.log('[Hotkey Debug] Recording start result:', result)
+        if (result.success) {
+          mainWindow.webContents.send(IPC_CHANNELS.RECORDING_STATE_CHANGED, 'recording')
+        } else {
+          console.error('[Hotkey Debug] Failed to start recording:', result.error)
+          mainWindow.webContents.send(IPC_CHANNELS.RECORDING_STATE_CHANGED, 'error')
+        }
       } else if (hotkeyType === 'toggle') {
         // Toggle recording
         const isRecording = audioCapture.isRecordingNow()
+        console.log('[Hotkey Debug] Toggle: isRecordingNow() returned:', isRecording)
+        
         if (isRecording) {
-          audioCapture.stopRecording()
-          mainWindow.webContents.send(IPC_CHANNELS.RECORDING_STATE_CHANGED, 'processing')
+          console.log('[Hotkey Debug] Toggle: Stopping recording')
+          const result = audioCapture.stopRecording()
+          console.log('[Hotkey Debug] Recording stop result:', result)
+          if (result.success) {
+            mainWindow.webContents.send(IPC_CHANNELS.RECORDING_STATE_CHANGED, 'processing')
+          } else {
+            console.error('[Hotkey Debug] Failed to stop recording:', result.error)
+            mainWindow.webContents.send(IPC_CHANNELS.RECORDING_STATE_CHANGED, 'error')
+          }
         } else {
-          audioCapture.startRecording()
-          mainWindow.webContents.send(IPC_CHANNELS.RECORDING_STATE_CHANGED, 'recording')
+          console.log('[Hotkey Debug] Toggle: Starting recording')
+          const result = await audioCapture.startRecording()
+          console.log('[Hotkey Debug] Recording start result:', result)
+          if (result.success) {
+            mainWindow.webContents.send(IPC_CHANNELS.RECORDING_STATE_CHANGED, 'recording')
+          } else {
+            console.error('[Hotkey Debug] Failed to start recording:', result.error)
+            mainWindow.webContents.send(IPC_CHANNELS.RECORDING_STATE_CHANGED, 'error')
+          }
         }
       }
     })
     
     globalShortcuts.on('hotkey-released', (hotkeyType: string) => {
-      if (!mainWindow) return
+      console.log('[Hotkey Debug] Hotkey released event received:', hotkeyType)
+      if (!mainWindow) {
+        console.log('[Hotkey Debug] No mainWindow, skipping IPC send')
+        return
+      }
       
+      console.log('[Hotkey Debug] Sending IPC event:', IPC_CHANNELS.RECORDING_HOTKEY_RELEASED, hotkeyType)
       mainWindow.webContents.send(IPC_CHANNELS.RECORDING_HOTKEY_RELEASED, hotkeyType)
       
       if (hotkeyType === 'pushToTalk') {
@@ -1027,9 +1209,9 @@ function initializeGlobalShortcuts() {
       }
     })
     
-    console.log('Global shortcuts initialized')
+    console.log('[Hotkey Debug] Global shortcuts initialized successfully')
   } catch (error) {
-    console.error('Failed to initialize global shortcuts:', error)
+    console.error('[Hotkey Debug] Failed to initialize global shortcuts:', error)
   }
 }
 
@@ -1046,7 +1228,7 @@ app.whenReady().then(async () => {
   await initializeAutoStart()
 
   // Initialize global shortcuts
-  initializeGlobalShortcuts()
+  await initializeGlobalShortcuts()
 
   // Setup IPC handlers
   setupDeviceIpcHandlers()

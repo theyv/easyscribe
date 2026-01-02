@@ -130,58 +130,9 @@ export async function pasteText(text: string): Promise<{ success: boolean; error
  */
 export function hasFocusedInput(): boolean {
   try {
-    // Get the current focused window
-    const activeWindow = robot.getActiveWindow()
-
-    // Check if the window title suggests a text editor or input field
-    // This is a basic heuristic - can be improved with platform-specific checks
-    const title = activeWindow.title.toLowerCase()
-
-    const textEditorPatterns = [
-      'notepad',
-      'text editor',
-      'word',
-      'excel',
-      'powerpoint',
-      'google docs',
-      'google sheets',
-      'google slides',
-      'vscode',
-      'visual studio',
-      'intellij',
-      'pycharm',
-      'webstorm',
-      'atom',
-      'sublime',
-      'vim',
-      'emacs',
-      'terminal',
-      'command prompt',
-      'powershell',
-      'bash',
-      'slack',
-      'discord',
-      'teams',
-      'zoom',
-      'skype',
-      'telegram',
-      'whatsapp',
-      'messenger',
-      'gmail',
-      'outlook',
-      'thunderbird',
-      'chrome',
-      'firefox',
-      'edge',
-      'safari',
-      'opera',
-      'brave'
-    ]
-
-    // Check if any pattern matches
-    const isTextEditor = textEditorPatterns.some(pattern => title.includes(pattern))
-
-    return isTextEditor
+    // Since robotjs doesn't provide window detection, we assume there's a focused input
+    // This is a safe default for most use cases
+    return true
   } catch (error) {
     // If we can't detect, assume there's a focused input
     return true

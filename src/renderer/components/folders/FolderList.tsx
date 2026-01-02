@@ -22,6 +22,8 @@ export interface FolderListProps {
   onDeleteFolder?: (id: string) => void
   onMoveTranscription?: (transcriptionId: string, folderId: string | null) => void
   className?: string
+  error?: string | null
+  isLoading?: boolean
 }
 
 export const FolderList: React.FC<FolderListProps> = ({
@@ -34,6 +36,8 @@ export const FolderList: React.FC<FolderListProps> = ({
   onDeleteFolder,
   onMoveTranscription,
   className,
+  error,
+  isLoading,
 }) => {
   const [showDialog, setShowDialog] = useState(false)
   const [editingFolder, setEditingFolder] = useState<{ id: string; name: string; color: string } | null>(null)
@@ -82,6 +86,13 @@ export const FolderList: React.FC<FolderListProps> = ({
 
   return (
     <div className={cn('space-y-2', className)}>
+      {/* Error Display */}
+      {error && (
+        <div className="mx-3 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          <p className="font-medium">Error</p>
+          <p>{error}</p>
+        </div>
+      )}
       <div className="flex items-center justify-between px-3">
         <h3 className="text-xs font-semibold uppercase text-muted-foreground">
           Folders

@@ -2,48 +2,48 @@
 
 export interface Transcription {
   id: string
-  deviceId: string
-  folderId?: string | null
+  device_id: string
+  folder_id?: string | null
   title: string
   content: string
-  sourceFilename?: string | null
-  audioPath?: string | null
+  source_filename?: string | null
+  audio_path?: string | null
   duration?: number | null
   type: 'recording' | 'import' | 'upload'
   language?: string | null
   metadata?: Record<string, unknown>
   synced: boolean
-  createdAt: string
-  updatedAt: string
+  created_at: string
+  updated_at: string
   tags?: Tag[]
 }
 
 export interface Folder {
   id: string
-  deviceId: string
+  device_id: string
   name: string
   color: string
-  parentId?: string | null
-  createdAt: string
-  updatedAt: string
+  parent_id?: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface Tag {
   id: string
-  deviceId: string
+  device_id: string
   name: string
   color: string
-  createdAt: string
-  updatedAt: string
+  created_at: string
+  updated_at: string
 }
 
 export interface Setting {
   id: string
-  deviceId: string
+  device_id: string
   key: string
   value: unknown
-  createdAt: string
-  updatedAt: string
+  created_at: string
+  updated_at: string
 }
 
 // Application settings configuration (stored in database as key-value pairs)
@@ -127,8 +127,8 @@ export interface Device {
   osVersion?: string | null
   appVersion?: string | null
   lastSeenAt: string
-  createdAt: string
-  updatedAt: string
+  created_at: string
+  updated_at: string
 }
 
 // Recording types

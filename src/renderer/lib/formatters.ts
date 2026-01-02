@@ -146,7 +146,7 @@ export function formatDateTime(
 export function formatTranscriptionsAsTxt(transcriptions: Transcription[]): string {
   return transcriptions.map((t, index) => {
     const header = `=== ${t.title} ===`
-    const meta = `Created: ${new Date(t.createdAt).toLocaleString()}\nType: ${t.type}`
+    const meta = `Created: ${new Date(t.created_at).toLocaleString()}\nType: ${t.type}`
     const content = t.content || '(No content)'
     const separator = index < transcriptions.length - 1 ? '\n---\n' : ''
     

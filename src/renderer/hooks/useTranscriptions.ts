@@ -46,7 +46,7 @@ export function useTranscriptions() {
 
   // Create a new transcription
   const createTranscription = useCallback(async (
-    transcription: Omit<Transcription, 'id' | 'createdAt' | 'updatedAt'>
+    transcription: Omit<Transcription, 'id' | 'created_at' | 'updated_at'>
   ) => {
     setLoading(true)
     setError(null)
@@ -68,8 +68,8 @@ export function useTranscriptions() {
       const newTranscription: Transcription = {
         ...transcription,
         id: `transcription-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
 
       addTranscription(newTranscription)
@@ -137,6 +137,31 @@ export function useTranscriptions() {
     }
   }, [setLoading, setError, deleteTranscription])
 
+  // Refresh a single transcription with tags
+  const refreshTranscription = useCallback(async (id: string) => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const { data: transData, error: transError } = await supabase
+        .from('transcriptions')
+        .select('*, tags(*)')
+        .eq('id', id)
+        .single()
+
+      if (transError) throw transError
+
+      if (transData) {
+        updateTranscription(id, transData)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refresh transcription')
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [setLoading, setError, updateTranscription])
+
   // Filter transcriptions
   const filterTranscriptions = useCallback((newFilter: Partial<TranscriptionFilter>) => {
     setFilter(newFilter)
@@ -154,7 +179,7 @@ export function useTranscriptions() {
 
   // Get transcriptions by folder
   const getTranscriptionsByFolder = useCallback((folderId: string) => {
-    return transcriptions.filter((t) => t.folderId === folderId)
+    return transcriptions.filter((t) => t.folder_id === folderId)
   }, [transcriptions])
 
   // Get transcriptions by tags
@@ -191,6 +216,7 @@ export function useTranscriptions() {
     selectTranscription: setSelectedTranscription,
     filterTranscriptions,
     resetFilters,
+    refreshTranscription,
 
     // Queries
     getTranscriptionById,

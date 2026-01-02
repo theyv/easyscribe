@@ -55,7 +55,7 @@ export const useTranscriptionStore = create<TranscriptionState>()(
       updateTranscription: (id, updates) =>
         set((state) => ({
           transcriptions: state.transcriptions.map((t) =>
-            t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
+            t.id === id ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
           )
         })),
 
@@ -90,7 +90,7 @@ export const useTranscriptionStore = create<TranscriptionState>()(
 
         // Filter by folder
         if (state.filter.folderId) {
-          filtered = filtered.filter((t) => t.folderId === state.filter.folderId)
+          filtered = filtered.filter((t) => t.folder_id === state.filter.folderId)
         }
 
         // Filter by tags
@@ -112,15 +112,15 @@ export const useTranscriptionStore = create<TranscriptionState>()(
 
         // Filter by date range
         if (state.filter.dateFrom) {
-          filtered = filtered.filter((t) => new Date(t.createdAt) >= state.filter.dateFrom!)
+          filtered = filtered.filter((t) => new Date(t.created_at) >= state.filter.dateFrom!)
         }
 
         if (state.filter.dateTo) {
-          filtered = filtered.filter((t) => new Date(t.createdAt) <= state.filter.dateTo!)
+          filtered = filtered.filter((t) => new Date(t.created_at) <= state.filter.dateTo!)
         }
 
         // Sort by creation date (newest first)
-        filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
         return filtered
       },

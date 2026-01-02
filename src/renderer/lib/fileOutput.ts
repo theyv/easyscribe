@@ -113,7 +113,11 @@ export async function saveToFile(
   filePath: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await window.electron.file.save(filePath, content)
+    const electron = window.electron
+    if (!electron?.file) {
+      throw new Error('Electron file API not available')
+    }
+    await electron.file.save(filePath, content)
     return { success: true }
   } catch (error) {
     return {

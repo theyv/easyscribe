@@ -1,10 +1,13 @@
 import React from "react"
 import { Mic, Search, Sun, Moon, Bell } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { SyncStatus } from "../common/SyncStatus"
 import { toast } from "@/components/ui/toast"
+import { useRecording } from "@/renderer/hooks/useRecording"
+import { RecordingMode } from "../../../shared/types"
 
 interface HeaderProps {
   className?: string
@@ -19,6 +22,8 @@ export const Header: React.FC<HeaderProps> = ({
   onThemeToggle,
   onSearch,
 }) => {
+  const navigate = useNavigate()
+  const { startRecording, isRecording } = useRecording()
   const [searchQuery, setSearchQuery] = React.useState("")
   const [notificationCount, setNotificationCount] = React.useState(0)
 
@@ -37,6 +42,21 @@ export const Header: React.FC<HeaderProps> = ({
     }
   }
 
+  const handleMicClick = async () => {
+    // Navigate to Live Transcriptions page
+    navigate("/transcriptions/live")
+    
+    // Start recording if not already recording
+    if (!isRecording) {
+      try {
+        await startRecording(RecordingMode.TOGGLE)
+        toast.success("Recording started")
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to start recording")
+      }
+    }
+  }
+
   const getThemeIcon = () => {
     if (theme === "dark") {
       return <Moon className="h-5 w-5" />
@@ -52,9 +72,15 @@ export const Header: React.FC<HeaderProps> = ({
       )}
     >
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleMicClick}
+          aria-label="Start recording"
+          className="h-10 w-10 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+        >
           <Mic className="h-5 w-5" />
-        </div>
+        </Button>
         <h1 className="text-xl font-bold">EasyScribe</h1>
       </div>
 

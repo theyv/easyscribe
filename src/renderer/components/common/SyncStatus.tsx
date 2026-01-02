@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Cloud, CloudOff, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useSupabase } from '@/renderer/hooks/useSupabase'
 
 type SyncStatusType = 'synced' | 'syncing' | 'offline' | 'error'
 
@@ -16,12 +17,27 @@ function isElectronMode(): boolean {
 }
 
 export function SyncStatus() {
+  const { isConnected, isConnecting, error } = useSupabase()
   const [syncData, setSyncData] = useState<SyncStatusData>({
     status: 'synced',
     lastSyncTime: null,
     queueSize: 0
   })
   const [isManualSyncing, setIsManualSyncing] = useState(false)
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
+
+  // Determine sync status based on Supabase connection state
+  useEffect(() => {
+    if (isConnecting) {
+      setSyncData(prev => ({ ...prev, status: 'syncing' }))
+    } else if (error) {
+      setSyncData(prev => ({ ...prev, status: 'error' }))
+    } else if (isConnected) {
+      setSyncData(prev => ({ ...prev, status: 'synced' }))
+    } else {
+      setSyncData(prev => ({ ...prev, status: 'offline' }))
+    }
+  }, [isConnected, isConnecting, error])
 
   // Load sync status on mount and periodically (Electron mode only)
   useEffect(() => {
@@ -35,6 +51,9 @@ export function SyncStatus() {
         const result = await (window as any).electron.settingsPersistence.getSyncStatus()
         if (result.success && result.data) {
           setSyncData(result.data)
+          if (result.data.lastSyncTime) {
+            setLastSyncTime(new Date(result.data.lastSyncTime))
+          }
         }
       } catch (error) {
         console.error('Failed to get sync status:', error)
@@ -50,8 +69,10 @@ export function SyncStatus() {
   }, [])
 
   const handleManualSync = async () => {
-    // Don't attempt sync in web mode
+    // In web mode, just update last sync time since Supabase syncs automatically
     if (!isElectronMode()) {
+      setLastSyncTime(new Date())
+      setSyncData(prev => ({ ...prev, status: 'synced' }))
       return
     }
 
@@ -64,6 +85,9 @@ export function SyncStatus() {
           lastSyncTime: result.data.lastSyncTime || null,
           queueSize: result.data.queueSize || 0
         })
+        if (result.data.lastSyncTime) {
+          setLastSyncTime(new Date(result.data.lastSyncTime))
+        }
       }
     } catch (error) {
       console.error('Failed to sync:', error)
@@ -112,10 +136,11 @@ export function SyncStatus() {
   }
 
   const formatLastSyncTime = () => {
-    if (!syncData.lastSyncTime) return 'Never'
+    const effectiveLastSyncTime = isElectronMode() ? syncData.lastSyncTime : lastSyncTime
+    if (!effectiveLastSyncTime) return 'Never'
 
     const now = new Date()
-    const diff = now.getTime() - syncData.lastSyncTime.getTime()
+    const diff = now.getTime() - effectiveLastSyncTime.getTime()
     const minutes = Math.floor(diff / 60000)
 
     if (minutes < 1) return 'Just now'
@@ -128,19 +153,7 @@ export function SyncStatus() {
     return `${days}d ago`
   }
 
-  // Web mode: show minimal UI indicating sync is unavailable
-  if (!isElectronMode()) {
-    return (
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className="gap-1">
-          <CloudOff className="h-4 w-4 text-gray-500" />
-          <span className="text-xs text-muted-foreground">Web mode</span>
-        </Badge>
-      </div>
-    )
-  }
-
-  // Electron mode: show full sync status UI
+  // Show sync status based on Supabase connection
   return (
     <div className="flex items-center gap-2">
       <Badge variant={getStatusVariant()} className="gap-1">
@@ -148,14 +161,14 @@ export function SyncStatus() {
         <span>{getStatusText()}</span>
       </Badge>
       
-      {syncData.queueSize > 0 && (
+      {isElectronMode() && syncData.queueSize > 0 && (
         <Badge variant="secondary" className="gap-1">
           <Cloud className="h-3 w-3" />
           {syncData.queueSize} pending
         </Badge>
       )}
       
-      {syncData.status === 'synced' && syncData.lastSyncTime && (
+      {(isElectronMode() ? syncData.lastSyncTime : lastSyncTime) && (
         <span className="text-xs text-muted-foreground">
           Last sync: {formatLastSyncTime()}
         </span>

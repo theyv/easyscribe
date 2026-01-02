@@ -11,8 +11,8 @@ export interface QueueItem {
   progress: number
   error: string | null
   transcription?: string
-  createdAt: string
-  updatedAt: string
+  created_at: string
+  updated_at: string
 }
 
 interface QueueState {
@@ -47,8 +47,8 @@ export const useQueueStore = create<QueueState>()(
           status: 'waiting',
           progress: 0,
           error: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         }
         set((state) => ({
           items: [...state.items, newItem]
@@ -60,12 +60,12 @@ export const useQueueStore = create<QueueState>()(
         set((state) => ({
           items: state.items.map((item) =>
             item.id === id
-              ? { ...item, ...updates, updatedAt: new Date().toISOString() }
+              ? { ...item, ...updates, updated_at: new Date().toISOString() }
               : item
           ),
           currentItem:
             state.currentItem?.id === id
-              ? { ...state.currentItem, ...updates, updatedAt: new Date().toISOString() }
+              ? { ...state.currentItem, ...updates, updated_at: new Date().toISOString() }
               : state.currentItem
         })),
 
@@ -79,7 +79,7 @@ export const useQueueStore = create<QueueState>()(
         set((state) => ({
           items: state.items.map((item) =>
             item.id === id && ['waiting', 'processing', 'transcribing'].includes(item.status)
-              ? { ...item, status: 'error', error: 'Cancelled', progress: 0, updatedAt: new Date().toISOString() }
+              ? { ...item, status: 'error', error: 'Cancelled', progress: 0, updated_at: new Date().toISOString() }
               : item
           )
         })),
@@ -88,7 +88,7 @@ export const useQueueStore = create<QueueState>()(
         set((state) => ({
           items: state.items.map((item) =>
             ['waiting', 'processing', 'transcribing'].includes(item.status)
-              ? { ...item, status: 'error', error: 'Cancelled', progress: 0, updatedAt: new Date().toISOString() }
+              ? { ...item, status: 'error', error: 'Cancelled', progress: 0, updated_at: new Date().toISOString() }
               : item
           ),
           isProcessing: false,

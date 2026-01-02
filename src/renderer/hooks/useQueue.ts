@@ -53,7 +53,11 @@ export function useQueue(options: UseQueueOptions = {}) {
       updateQueueItem(nextItem.id, { status: 'processing', progress: 10 })
 
       // Start transcription via IPC
-      const response = await window.electron.file.transcribe(nextItem.filePath) as IpcResponse<{ transcription: string }>
+      const electron = window.electron
+      if (!electron?.file) {
+        throw new Error('Electron file API not available')
+      }
+      const response = await electron.file.transcribe(nextItem.filePath) as IpcResponse<{ transcription: string }>
 
       if (response.success && response.data) {
         // Update status to completed

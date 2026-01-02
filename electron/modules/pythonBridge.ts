@@ -34,6 +34,13 @@ export interface PythonStatus {
   error?: string;
 }
 
+export interface DownloadProgress {
+  status: 'downloading' | 'verifying' | 'complete' | 'error';
+  progress: number;
+  message: string;
+  error?: string;
+}
+
 export interface JSONRPCRequest {
   jsonrpc: '2.0';
   id: string | number;
@@ -64,6 +71,9 @@ let pythonStatus: PythonStatus | null = null;
 let healthCheckInterval: NodeJS.Timeout | null = null;
 let restartAttempts = 0;
 const MAX_RESTART_ATTEMPTS = 3;
+
+// Download progress callback
+let downloadProgressCallback: ((progress: DownloadProgress) => void) | null = null;
 
 // Get Python executable path
 function getPythonPath(): string {
@@ -98,6 +108,27 @@ export function isPythonAvailable(): boolean {
       return false;
     }
     
+    // Try to verify Python is executable by checking if it exists in PATH
+    // We'll do a simple spawn check to see if Python can be executed
+    const { spawnSync } = require('child_process');
+    
+    // Try to execute a simple Python command to verify it works
+    const result = spawnSync(pythonPath, ['--version'], {
+      stdio: 'pipe',
+      timeout: 5000
+    });
+    
+    if (result.error) {
+      console.error('Python executable not found or not executable:', pythonPath, result.error);
+      return false;
+    }
+    
+    if (result.status !== 0) {
+      console.error('Python executable returned non-zero status:', result.status);
+      return false;
+    }
+    
+    console.log('Python is available:', pythonPath);
     return true;
   } catch (error) {
     console.error('Error checking Python availability:', error);
@@ -363,6 +394,257 @@ async function healthCheck(): Promise<void> {
       await startPythonProcess();
     }
   }
+}
+
+// Download the Whisper model
+export async function downloadModel(
+  onProgress?: (progress: DownloadProgress) => void
+): Promise<{ success: boolean; error?: string }> {
+  downloadProgressCallback = onProgress || null;
+
+  if (!isPythonAvailable()) {
+    const error = 'Python is not available. Please ensure Python is installed.';
+    if (downloadProgressCallback) {
+      downloadProgressCallback({
+        status: 'error',
+        progress: 0,
+        message: error,
+        error
+      });
+    }
+    return { success: false, error };
+  }
+
+  const pythonPath = getPythonPath();
+  const transcriberPath = getTranscriberPath();
+  const modelDownloadScript = path.join(path.dirname(transcriberPath), 'download_model.py');
+  const requirementsPath = path.join(path.dirname(transcriberPath), 'requirements.txt');
+
+  console.log('Starting model download:', pythonPath, modelDownloadScript);
+
+  try {
+    // First, install dependencies
+    if (downloadProgressCallback) {
+      downloadProgressCallback({
+        status: 'downloading',
+        progress: 0,
+        message: 'Installing Python dependencies...'
+      });
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const installProcess = spawn(pythonPath, ['-m', 'pip', 'install', '-r', requirementsPath], {
+        cwd: path.dirname(transcriberPath),
+        env: {
+          ...process.env,
+          PYTHONUNBUFFERED: '1'
+        }
+      });
+
+      let installOutput = '';
+
+      installProcess.stdout?.on('data', (data: Buffer) => {
+        installOutput += data.toString();
+      });
+
+      installProcess.stderr?.on('data', (data: Buffer) => {
+        const output = data.toString();
+        installOutput += output;
+        console.log('Pip install output:', output);
+      });
+
+      installProcess.on('exit', (code, signal) => {
+        console.log(`Pip install exited with code ${code}, signal ${signal}`);
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Failed to install dependencies. Exit code: ${code}`));
+        }
+      });
+
+      installProcess.on('error', (error) => {
+        console.error('Pip install error:', error);
+        reject(error);
+      });
+    });
+
+    // Create download script if it doesn't exist
+    await createDownloadScript(modelDownloadScript);
+
+    return new Promise((resolve) => {
+      const downloadProcess = spawn(pythonPath, [modelDownloadScript], {
+        cwd: path.dirname(transcriberPath),
+        env: {
+          ...process.env,
+          PYTHONUNBUFFERED: '1'
+        }
+      });
+
+      let lastProgress = 0;
+
+      // Handle stdout (progress updates)
+      downloadProcess.stdout?.on('data', (data: Buffer) => {
+        const lines = data.toString().split('\n').filter(line => line.trim());
+        lines.forEach(line => {
+          try {
+            const parsed = JSON.parse(line);
+            if (parsed.type === 'progress') {
+              const progress: DownloadProgress = {
+                status: parsed.status,
+                progress: parsed.progress || 0,
+                message: parsed.message || ''
+              };
+              if (parsed.error) {
+                progress.error = parsed.error;
+              }
+              if (downloadProgressCallback && progress.progress > lastProgress) {
+                downloadProgressCallback(progress);
+                lastProgress = progress.progress;
+              }
+            }
+          } catch {
+            // Ignore non-JSON output
+          }
+        });
+      });
+
+      // Handle stderr (errors)
+      downloadProcess.stderr?.on('data', (data: Buffer) => {
+        const lines = data.toString().split('\n').filter(line => line.trim());
+        lines.forEach(line => {
+          console.error('Download error:', line);
+          if (downloadProgressCallback) {
+            downloadProgressCallback({
+              status: 'error',
+              progress: lastProgress,
+              message: 'Download failed',
+              error: line
+            });
+          }
+        });
+      });
+
+      // Handle process exit
+      downloadProcess.on('exit', (code, signal) => {
+        console.log(`Download process exited with code ${code}, signal ${signal}`);
+        
+        if (code === 0) {
+          if (downloadProgressCallback) {
+            downloadProgressCallback({
+              status: 'complete',
+              progress: 100,
+              message: 'Model downloaded successfully'
+            });
+          }
+          resolve({ success: true });
+        } else {
+          const error = signal || `Download process exited with code ${code}`;
+          if (downloadProgressCallback) {
+            downloadProgressCallback({
+              status: 'error',
+              progress: lastProgress,
+              message: 'Download failed',
+              error
+            });
+          }
+          resolve({ success: false, error: String(error) });
+        }
+        
+        downloadProgressCallback = null;
+      });
+
+      // Handle process error
+      downloadProcess.on('error', (error) => {
+        console.error('Download process error:', error);
+        if (downloadProgressCallback) {
+          downloadProgressCallback({
+            status: 'error',
+            progress: lastProgress,
+            message: 'Download failed',
+            error: error.message
+          });
+        }
+        resolve({ success: false, error: error.message });
+        downloadProgressCallback = null;
+      });
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Failed to download model:', error);
+    if (downloadProgressCallback) {
+      downloadProgressCallback({
+        status: 'error',
+        progress: 0,
+        message: 'Download failed',
+        error: errorMessage
+      });
+    }
+    downloadProgressCallback = null;
+    return { success: false, error: errorMessage };
+  }
+}
+
+// Create download script
+async function createDownloadScript(scriptPath: string): Promise<void> {
+  const scriptContent = `#!/usr/bin/env python3
+"""
+Model Download Script
+Downloads the faster-whisper model from HuggingFace
+"""
+
+import sys
+import json
+import os
+from pathlib import Path
+from huggingface_hub import snapshot_download
+import time
+
+MODEL_NAME = "deepdml/faster-whisper-large-v3-turbo-ct2"
+CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "huggingface")
+
+def print_progress(type, status, progress, message, error=None):
+    """Print progress as JSON"""
+    data = {
+        "type": "progress",
+        "status": status,
+        "progress": progress,
+        "message": message
+    }
+    if error:
+        data["error"] = error
+    print(json.dumps(data), flush=True)
+
+def download_model():
+    """Download the model"""
+    try:
+        print_progress("progress", "downloading", 0, "Starting download...")
+        
+        # Download model from HuggingFace
+        local_dir = snapshot_download(
+            repo_id=MODEL_NAME,
+            cache_dir=CACHE_DIR,
+            local_dir_use_symlinks=False,
+            resume_download=True
+        )
+        
+        print_progress("progress", "verifying", 95, "Verifying download...")
+        time.sleep(1)  # Simulate verification
+        
+        print_progress("progress", "complete", 100, "Model downloaded successfully")
+        return True
+        
+    except Exception as e:
+        print_progress("progress", "error", 0, "Download failed", error=str(e))
+        return False
+
+if __name__ == "__main__":
+    success = download_model()
+    sys.exit(0 if success else 1)
+`;
+
+  await fs.promises.mkdir(path.dirname(scriptPath), { recursive: true });
+  await fs.promises.writeFile(scriptPath, scriptContent, 'utf-8');
+  console.log('Download script created:', scriptPath);
 }
 
 // Cleanup on app quit

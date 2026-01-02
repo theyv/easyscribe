@@ -14,7 +14,6 @@ import time
 
 # Model configuration
 MODEL_NAME = "deepdml/faster-whisper-large-v3-turbo-ct2"
-MODEL_SIZE = "large-v3-turbo"
 COMPUTE_TYPE = "float16"  # Use float16 for GPU, int8 for CPU
 
 class Transcriber:
@@ -48,7 +47,7 @@ class Transcriber:
                 device = "cpu"
             
             self.model = WhisperModel(
-                MODEL_SIZE,
+                MODEL_NAME,
                 device=device,
                 compute_type=compute_type,
                 download_root=os.path.join(os.path.expanduser("~"), ".cache", "huggingface")

@@ -31,19 +31,19 @@ export function DataSettings() {
       // Convert Supabase snake_case to camelCase for Transcription type
       const allTranscriptions: Transcription[] = (transcriptionsData || []).map((t) => ({
         id: t.id,
-        deviceId: t.device_id,
-        folderId: t.folder_id,
+        device_id: t.device_id,
+        folder_id: t.folder_id,
         title: t.title,
         content: t.content,
-        sourceFilename: t.source_filename,
-        audioPath: t.audio_path,
+        source_filename: t.source_filename,
+        audio_path: t.audio_path,
         duration: t.duration,
         type: t.type,
         language: t.language,
         metadata: t.metadata,
         synced: t.synced,
-        createdAt: t.created_at,
-        updatedAt: t.updated_at,
+        created_at: t.created_at,
+        updated_at: t.updated_at,
         tags: t.tags
       }))
 

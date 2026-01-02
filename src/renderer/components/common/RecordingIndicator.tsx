@@ -80,7 +80,8 @@ export const RecordingIndicator: React.FC<RecordingIndicatorProps> = ({ classNam
       <div className="relative">
         <Icon
           className={cn(
-            'h-5 w-5 text-white',
+            'h-5 w-5',
+            indicatorState.iconColor,
             indicatorState.pulse && 'animate-pulse'
           )}
         />
@@ -91,7 +92,10 @@ export const RecordingIndicator: React.FC<RecordingIndicatorProps> = ({ classNam
 
       {/* Text */}
       <div className="flex flex-col">
-        <span className="text-sm font-medium text-white">{indicatorState.text}</span>
+        <span className={cn(
+          'text-sm font-medium',
+          state === RecordingState.IDLE ? 'text-foreground' : 'text-white'
+        )}>{indicatorState.text}</span>
         {state === RecordingState.RECORDING && (
           <span className="text-xs text-white/80">{formattedDuration}</span>
         )}

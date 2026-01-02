@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSettings } from '../../hooks/useSettings'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Label } from '../ui/label'
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
-import { Info, CheckCircle2, AlertCircle, Download, RefreshCw, ExternalLink } from 'lucide-react'
+import { Progress } from '../ui/progress'
+import { Info, CheckCircle2, AlertCircle, Download, RefreshCw, ExternalLink, X } from 'lucide-react'
 
 export function EngineSettings() {
   const { settings, updateSetting } = useSettings()
@@ -13,6 +14,10 @@ export function EngineSettings() {
   const [pythonStatus, setPythonStatus] = useState<any>(null)
   const [checkingStatus, setCheckingStatus] = useState(false)
   const [isWebMode, setIsWebMode] = useState<boolean>(false)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState(0)
+  const [downloadMessage, setDownloadMessage] = useState('')
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   useEffect(() => {
     // Check if we're in web mode (Electron API not available)
@@ -20,7 +25,39 @@ export function EngineSettings() {
       setIsWebMode(true)
     } else {
       checkPythonStatus()
+      setupDownloadProgressListener()
     }
+
+    return () => {
+      // Cleanup download progress listener
+      if (window.electron?.python?.onModelDownloadProgress) {
+        window.electron.python.onModelDownloadProgress(() => {})
+      }
+    }
+  }, [])
+
+  const setupDownloadProgressListener = useCallback(() => {
+    if (!window.electron?.python?.onModelDownloadProgress) return
+
+    const unsubscribe = window.electron.python.onModelDownloadProgress((progress) => {
+      console.log('Download progress:', progress)
+      setDownloadProgress(progress.progress)
+      setDownloadMessage(progress.message)
+      
+      if (progress.status === 'complete') {
+        setDownloading(false)
+        setDownloadProgress(100)
+        setDownloadMessage('Model downloaded successfully!')
+        setDownloadError(null)
+        // Refresh Python status after download completes
+        setTimeout(() => checkPythonStatus(), 1000)
+      } else if (progress.status === 'error') {
+        setDownloading(false)
+        setDownloadError(progress.error || 'Download failed')
+      }
+    })
+
+    return unsubscribe
   }, [])
 
   const checkPythonStatus = async () => {
@@ -48,6 +85,36 @@ export function EngineSettings() {
   const isLocalEngineAvailable = pythonAvailable && pythonStatus?.available !== false
   const isModelAvailable = pythonStatus?.status === 'ready'
   const modelDownloadUrl = 'https://huggingface.co/guillaumekln/faster-whisper-large-v3'
+
+  const handleDownloadModel = async () => {
+    // Check if Python is available before attempting download
+    if (!pythonAvailable) {
+      setDownloadError('Python is not available. Please install Python and the required dependencies first.')
+      return
+    }
+
+    if (!window.electron?.python?.downloadModel) {
+      // Fallback to opening HuggingFace URL if Electron API not available
+      window.open(modelDownloadUrl, '_blank')
+      return
+    }
+
+    setDownloading(true)
+    setDownloadProgress(0)
+    setDownloadMessage('Installing dependencies and starting download...')
+    setDownloadError(null)
+
+    try {
+      const result = await window.electron.python.downloadModel()
+      if (!result.success) {
+        setDownloading(false)
+        setDownloadError(result.error || 'Download failed')
+      }
+    } catch (error) {
+      setDownloading(false)
+      setDownloadError(error instanceof Error ? error.message : 'Download failed')
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -142,16 +209,57 @@ export function EngineSettings() {
                         <p className="text-xs text-muted-foreground">
                           The Whisper model needs to be downloaded to use local transcription.
                         </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-xs h-7 gap-1"
-                          onClick={() => window.open(modelDownloadUrl, '_blank')}
-                        >
-                          <Download className="h-3 w-3" />
-                          Download Model
-                          <ExternalLink className="h-3 w-3" />
-                        </Button>
+                        
+                        {!downloading && !downloadError && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-7 gap-1"
+                            onClick={handleDownloadModel}
+                            disabled={!pythonAvailable}
+                            title={!pythonAvailable ? 'Python is not available. Please install Python first.' : ''}
+                          >
+                            <Download className="h-3 w-3" />
+                            Download Model
+                          </Button>
+                        )}
+                        
+                        {downloading && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">{downloadMessage}</span>
+                              <span className="font-medium">{downloadProgress}%</span>
+                            </div>
+                            <Progress value={downloadProgress} className="h-2" />
+                          </div>
+                        )}
+                        
+                        {downloadError && (
+                          <div className="space-y-2">
+                            <p className="text-xs text-red-600 dark:text-red-400">
+                              {downloadError}
+                            </p>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs h-7 gap-1"
+                                onClick={handleDownloadModel}
+                              >
+                                <RefreshCw className="h-3 w-3" />
+                                Retry
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs h-7"
+                                onClick={() => setDownloadError(null)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -264,7 +372,7 @@ export function EngineSettings() {
               <h3 className="font-semibold">Installation Steps:</h3>
               <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
                 <li>Install Python 3.9 or later from <a href="https://python.org" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">python.org</a></li>
-                <li>Run the setup script for your platform:</li>
+                <li>Click the button below to automatically install dependencies and download the model</li>
               </ol>
             </div>
             
@@ -274,7 +382,7 @@ export function EngineSettings() {
                 className="w-full"
                 onClick={() => window.open('https://github.com/guillaumekln/faster-whisper', '_blank')}
               >
-                <Download className="h-4 w-4 mr-2" />
+                <ExternalLink className="h-4 w-4 mr-2" />
                 View Setup Guide
               </Button>
               <Button

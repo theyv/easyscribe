@@ -48,6 +48,7 @@ export const IPC_CHANNELS = {
   // Events (Main -> Renderer)
   RECORDING_STATE_CHANGED: 'recording:state-changed',
   RECORDING_DURATION_UPDATED: 'recording:duration-updated',
+  RECORDING_AUDIO_LEVEL_UPDATED: 'recording:audio-level-updated',
   RECORDING_HOTKEY_PRESSED: 'recording:hotkey-pressed',
   RECORDING_HOTKEY_RELEASED: 'recording:hotkey-released',
 
@@ -113,7 +114,8 @@ export const IPC_CHANNELS = {
   PYTHON_GET_STATUS: 'python:get-status',
   PYTHON_IS_AVAILABLE: 'python:is-available',
   PYTHON_START: 'python:start',
-  PYTHON_STOP: 'python:stop'
+  PYTHON_STOP: 'python:stop',
+  PYTHON_DOWNLOAD_MODEL: 'python:download-model'
 } as const
 
 export type IpcChannel = typeof IPC_CHANNELS[keyof typeof IPC_CHANNELS]

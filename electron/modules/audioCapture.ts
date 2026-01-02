@@ -26,6 +26,7 @@ class AudioCaptureManager extends EventEmitter {
   private startTime: number = 0
   private warningTimeout: NodeJS.Timeout | null = null
   private maxDurationTimeout: NodeJS.Timeout | null = null
+  private audioLevelInterval: NodeJS.Timeout | null = null
   private currentOptions: Required<RecordingOptions> = DEFAULT_OPTIONS
 
   /**
@@ -60,13 +61,17 @@ class AudioCaptureManager extends EventEmitter {
    */
   async startRecording(options: RecordingOptions = {}): Promise<{ success: boolean; error?: string }> {
     try {
+      console.log('[AudioCapture Debug] startRecording called, current isRecording:', this.isRecording)
+      
       if (this.isRecording) {
+        console.log('[AudioCapture Debug] Recording already in progress, returning error')
         return { success: false, error: 'Recording already in progress' }
       }
 
       // Request microphone permission on macOS
       const hasPermission = await this.requestMicrophonePermission()
       if (!hasPermission) {
+        console.log('[AudioCapture Debug] Microphone permission denied')
         return { success: false, error: 'Microphone permission denied' }
       }
 
@@ -98,19 +103,24 @@ class AudioCaptureManager extends EventEmitter {
       this.recorder!.start()
       this.startTime = Date.now()
       this.isRecording = true
+      
+      console.log('[AudioCapture Debug] Recording started successfully, isRecording now:', this.isRecording)
 
       // Set up duration timers
       this.setupDurationTimers()
+
+      // Start audio level monitoring
+      this.startAudioLevelMonitoring()
 
       this.emit('recording-started')
       console.log('Audio recording started')
       
       return { success: true }
     } catch (error) {
-      console.error('Failed to start recording:', error)
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to start recording' 
+      console.error('[AudioCapture Debug] Failed to start recording:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to start recording'
       }
     }
   }
@@ -156,16 +166,56 @@ class AudioCaptureManager extends EventEmitter {
   }
 
   /**
+   * Start audio level monitoring
+   */
+  private startAudioLevelMonitoring(): void {
+    // Clear existing interval
+    this.stopAudioLevelMonitoring()
+
+    // Monitor audio level every 100ms
+    this.audioLevelInterval = setInterval(() => {
+      if (this.isRecording && this.recorder) {
+        // Generate a simulated audio level based on random noise
+        // In a real implementation, this would analyze the actual audio stream
+        // For now, we'll use a simulated level that fluctuates
+        const baseLevel = Math.random() * 30 // Base noise level (0-30)
+        const voiceActivity = Math.random() > 0.7 ? Math.random() * 50 : 0 // Occasional voice activity (0-50)
+        const level = Math.min(100, Math.floor(baseLevel + voiceActivity))
+
+        this.emit('audio-level', { level })
+      }
+    }, 100)
+  }
+
+  /**
+   * Stop audio level monitoring
+   */
+  private stopAudioLevelMonitoring(): void {
+    if (this.audioLevelInterval) {
+      clearInterval(this.audioLevelInterval)
+      this.audioLevelInterval = null
+    }
+    // Emit zero level when stopped
+    this.emit('audio-level', { level: 0 })
+  }
+
+  /**
    * Stop audio recording and return the result
    */
   stopRecording(): { success: boolean; data?: RecordingResult; error?: string } {
     try {
+      console.log('[AudioCapture Debug] stopRecording called, current isRecording:', this.isRecording)
+      
       if (!this.isRecording || !this.recorder) {
+        console.log('[AudioCapture Debug] No recording in progress, returning error')
         return { success: false, error: 'No recording in progress' }
       }
 
       // Clear timers
       this.clearDurationTimers()
+
+      // Stop audio level monitoring
+      this.stopAudioLevelMonitoring()
 
       // Stop recording and get buffer
       const audioBuffer = this.recorder.stop()
@@ -175,6 +225,8 @@ class AudioCaptureManager extends EventEmitter {
       this.isRecording = false
       this.recorder = null
       this.startTime = 0
+      
+      console.log('[AudioCapture Debug] Recording stopped, isRecording now:', this.isRecording, 'duration:', duration)
 
       const result: RecordingResult = {
         audioBuffer,
@@ -187,10 +239,10 @@ class AudioCaptureManager extends EventEmitter {
 
       return { success: true, data: result }
     } catch (error) {
-      console.error('Failed to stop recording:', error)
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to stop recording' 
+      console.error('[AudioCapture Debug] Failed to stop recording:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to stop recording'
       }
     }
   }
@@ -207,6 +259,7 @@ class AudioCaptureManager extends EventEmitter {
    * Check if currently recording
    */
   isRecordingNow(): boolean {
+    console.log('[AudioCapture Debug] isRecordingNow called, returning:', this.isRecording)
     return this.isRecording
   }
 

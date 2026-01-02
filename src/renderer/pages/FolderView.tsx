@@ -14,7 +14,7 @@ export const FolderView: React.FC = () => {
 
   // Filter transcriptions by folder
   const folderTranscriptions = folderId
-    ? transcriptions.filter((t) => t.folderId === folderId)
+    ? transcriptions.filter((t) => t.folder_id === folderId)
     : []
 
   // Get folder name from first transcription (or could fetch from folders API)

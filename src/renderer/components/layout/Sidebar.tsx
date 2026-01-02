@@ -74,6 +74,8 @@ interface SidebarProps {
   onRenameTag?: (id: string) => void
   onDeleteTag?: (id: string) => void
   onMergeTags?: (sourceId: string, targetId: string) => void
+  foldersError?: string | null
+  foldersLoading?: boolean
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -93,6 +95,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onRenameTag,
   onDeleteTag,
   onMergeTags,
+  foldersError,
+  foldersLoading,
 }) => {
   const navigate = useNavigate()
   const location = useLocation()
@@ -179,6 +183,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onUpdateFolder={onUpdateFolder}
             onDeleteFolder={onDeleteFolder}
             onMoveTranscription={onMoveTranscription}
+            error={foldersError}
+            isLoading={foldersLoading}
           />
         )}
 

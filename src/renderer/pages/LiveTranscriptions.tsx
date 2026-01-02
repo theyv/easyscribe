@@ -24,11 +24,23 @@ export const LiveTranscriptions: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Live Transcriptions</h1>
-        <p className="text-muted-foreground">
-          Transcriptions from live recording sessions
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Live Transcriptions</h1>
+          <p className="text-muted-foreground">
+            Transcriptions from live recording sessions
+          </p>
+        </div>
+        {/* Recording button - always visible when not recording */}
+        {!isRecording && (
+          <button
+            onClick={handleRecordingClick}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Mic className="h-5 w-5" />
+            <span>Start Recording</span>
+          </button>
+        )}
       </div>
 
       <TranscriptionList
@@ -37,11 +49,7 @@ export const LiveTranscriptions: React.FC = () => {
         sortBy={sortBy}
         onSortChange={setSortBy}
         emptyTitle="Press hotkey to record"
-        emptyDescription="Use your configured hotkey to start recording, or click below."
-        emptyAction={{
-          label: isRecording ? "Stop Recording" : "Start Recording",
-          onClick: handleRecordingClick,
-        }}
+        emptyDescription="Use your configured hotkey to start recording, or click the Start Recording button above."
       />
 
       {/* Recording Indicator */}

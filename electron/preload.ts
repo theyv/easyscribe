@@ -137,6 +137,11 @@ contextBridge.exposeInMainWorld('electron', {
       const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data)
       ipcRenderer.on('recording:transcription-complete', listener)
       return () => ipcRenderer.removeListener('recording:transcription-complete', listener)
+    },
+    onAudioLevelUpdated: (callback: (data: { level: number }) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: { level: number }) => callback(data)
+      ipcRenderer.on(IPC_CHANNELS.RECORDING_AUDIO_LEVEL_UPDATED, listener)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.RECORDING_AUDIO_LEVEL_UPDATED, listener)
     }
   },
 
@@ -151,6 +156,15 @@ contextBridge.exposeInMainWorld('electron', {
     start: () =>
       ipcRenderer.invoke(IPC_CHANNELS.PYTHON_START),
     stop: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.PYTHON_STOP)
+      ipcRenderer.invoke(IPC_CHANNELS.PYTHON_STOP),
+    downloadModel: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.PYTHON_DOWNLOAD_MODEL),
+    
+    // Event listener for download progress
+    onModelDownloadProgress: (callback: (progress: { status: string; progress: number; message: string; error?: string }) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: any) => callback(progress)
+      ipcRenderer.on('python:model-download-progress', listener)
+      return () => ipcRenderer.removeListener('python:model-download-progress', listener)
+    }
   }
 })

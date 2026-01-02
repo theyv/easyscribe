@@ -24,4 +24,12 @@ It is optional, but recommended to be updated as the project evolves.
 
 ## Testing Patterns
 
-- To be determined
+- Playwright for end-to-end testing
+- Tests organized by feature/component in `tests/` directory
+- Each test file covers specific bug fixes
+- Console error monitoring in all tests
+- DOM state verification for UI updates
+- Accessibility checks (aria-labels, keyboard navigation)
+- Multi-browser testing (Chromium, Firefox, WebKit)
+- Screenshot and video capture on test failure
+- HTML reporter for test results

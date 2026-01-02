@@ -5,6 +5,7 @@ import { Settings, DEFAULT_SETTINGS } from '../../shared/defaults'
 interface SettingsState {
   settings: Settings
   isLoading: boolean
+  isInitialLoading: boolean
   error: string | null
   hasUnsavedChanges: boolean
   
@@ -22,6 +23,7 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       settings: DEFAULT_SETTINGS,
       isLoading: false,
+      isInitialLoading: false,
       error: null,
       hasUnsavedChanges: false,
 

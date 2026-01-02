@@ -95,7 +95,7 @@ export function useRecording(): UseRecordingReturn {
   const { addTranscription } = useTranscriptionStore()
 
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const audioLevelIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const audioLevelIntervalRef = useRef<NodeJS.Timeout | (() => void) | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
@@ -154,15 +154,15 @@ export function useRecording(): UseRecordingReturn {
       // Create transcription object
       const transcription: Transcription = {
         id: `rec-${Date.now()}`,
-        deviceId: 'web-device',
+        device_id: 'web-device',
         title: `Recording ${new Date().toLocaleString()}`,
         content: result.text,
         type: 'recording',
         language: result.language || settings.language,
         duration: result.duration || recordingDuration,
         synced: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
 
       // Add to store
@@ -256,13 +256,15 @@ export function useRecording(): UseRecordingReturn {
           updateDuration((Date.now() - (window as any).electron.recording?.startTime || Date.now()) / 1000)
         }, 100)
 
-        // Start audio level tracking
-        audioLevelIntervalRef.current = setInterval(async () => {
-          const levelResult = await (window as any).electron.recording?.getAudioLevel()
-          if (levelResult?.success) {
-            useRecordingStore.setState({ audioLevel: levelResult.data?.level || 0 })
-          }
-        }, 100)
+        // Start audio level tracking - listen for events from main process
+        const electron = (window as any).electron
+        if (electron?.recording?.onAudioLevelUpdated) {
+          const cleanupAudioLevel = electron.recording.onAudioLevelUpdated((data: { level: number }) => {
+            useRecordingStore.setState({ audioLevel: data.level })
+          })
+          // Store cleanup function
+          audioLevelIntervalRef.current = cleanupAudioLevel as any
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start recording')
@@ -280,7 +282,11 @@ export function useRecording(): UseRecordingReturn {
         durationIntervalRef.current = null
       }
       if (audioLevelIntervalRef.current) {
-        clearInterval(audioLevelIntervalRef.current)
+        // It's now a cleanup function, not an interval
+        const cleanup = audioLevelIntervalRef.current
+        if (typeof cleanup === 'function') {
+          cleanup()
+        }
         audioLevelIntervalRef.current = null
       }
 
@@ -363,7 +369,11 @@ export function useRecording(): UseRecordingReturn {
         clearInterval(durationIntervalRef.current)
       }
       if (audioLevelIntervalRef.current) {
-        clearInterval(audioLevelIntervalRef.current)
+        // It's a cleanup function now
+        const cleanup = audioLevelIntervalRef.current
+        if (typeof cleanup === 'function') {
+          cleanup()
+        }
       }
       
       // Clean up web mode resources
@@ -393,15 +403,15 @@ export function useRecording(): UseRecordingReturn {
       // Create transcription object
       const transcription: Transcription = {
         id: `rec-${Date.now()}`,
-        deviceId: 'electron-device',
+        device_id: 'electron-device',
         title: `Recording ${new Date().toLocaleString()}`,
         content: data.text || '',
         type: 'recording',
         language: data.language || 'en',
         duration: data.duration || 0,
         synced: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
 
       // Add to store

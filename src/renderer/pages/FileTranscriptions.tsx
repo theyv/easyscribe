@@ -78,12 +78,12 @@ export const FileTranscriptions: React.FC = () => {
 
         // Create transcription record
         await createTranscription({
-          deviceId: 'web-device',
-          folderId: null,
+          device_id: 'web-device',
+          folder_id: null,
           title: file.name.replace(/\.[^/.]+$/, ""),
           content: result.text,
-          sourceFilename: file.name,
-          audioPath: file.name,
+          source_filename: file.name,
+          audio_path: file.name,
           duration: result.duration,
           type: "import",
           language: result.language || 'auto',
@@ -118,12 +118,12 @@ export const FileTranscriptions: React.FC = () => {
 
         // Create transcription record
         await createTranscription({
-          deviceId: 'import',
-          folderId: null,
+          device_id: 'import',
+          folder_id: null,
           title: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
           content: result.text,
-          sourceFilename: file.name,
-          audioPath: filePath,
+          source_filename: file.name,
+          audio_path: filePath,
           duration: result.duration,
           type: "import",
           language: result.language || 'auto',

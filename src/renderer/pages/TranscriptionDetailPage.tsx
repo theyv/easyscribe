@@ -12,79 +12,83 @@ import type { Transcription } from "@/shared/types"
 export const TranscriptionDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { transcriptions, updateTranscription, deleteTranscription } = useTranscriptions()
+  const { transcriptions, updateTranscription, deleteTranscription, refreshTranscription } = useTranscriptions()
+  const { deviceInfo } = useDevice()
   const { folders } = useFolders('')
-  const { tags, addTag, removeTag, createTag } = useTags('')
-  const { device } = useDevice()
+  const { tags, addTag, removeTag, createTag } = useTags(deviceInfo?.id || '')
   const [isEditing, setIsEditing] = useState(false)
-
+  
   const transcription = id
     ? transcriptions.find((t) => t.id === id)
     : null
-
+  
   const handleEdit = () => {
     setIsEditing(true)
   }
-
+  
   const handleSave = async (content: string) => {
     if (id) {
       await updateTranscription(id, { content })
     }
   }
-
+  
   const handleCancelEdit = () => {
     setIsEditing(false)
   }
-
+  
   const handleDelete = async (transcriptionId: string) => {
     await deleteTranscription(transcriptionId)
     navigate("/transcriptions")
   }
-
+  
   const handleCopy = (content: string) => {
     navigator.clipboard.writeText(content)
   }
-
+  
   const handleExportTxt = (transcription: Transcription) => {
     // TODO: Implement TXT export
     console.log("Export TXT:", transcription)
   }
-
+  
   const handleExportSrt = (transcription: Transcription) => {
     // TODO: Implement SRT export
     console.log("Export SRT:", transcription)
   }
-
+  
   const handleOpenFolder = (path: string) => {
     // TODO: Implement open folder via IPC
     console.log("Open folder:", path)
   }
-
+  
   const handleFolderChange = async (folderId: string) => {
     if (id) {
-      await updateTranscription(id, { folderId })
+      await updateTranscription(id, { folder_id: folderId })
     }
   }
-
+  
   const handleTagToggle = async (tagId: string) => {
-    if (!id || !device) return
-
+    if (!id || !deviceInfo) return
+    
     const currentTags = transcription?.tags || []
     const isAttached = currentTags.some(t => t.id === tagId)
-
+    
     if (isAttached) {
       await removeTag(id, tagId)
     } else {
       await addTag(id, tagId)
     }
+    // Refresh transcription to update tags in local state
+    await refreshTranscription(id)
   }
-
+  
   const handleCreateTag = async (name: string, color: string) => {
-    if (!device) return
-
+    if (!deviceInfo) return
+    
     const newTag = await createTag({ name, color })
     if (newTag && id) {
       await addTag(id, newTag.id)
+      // Refresh transcription to update tags in local state
+      await refreshTranscription(id)
     }
   }
 

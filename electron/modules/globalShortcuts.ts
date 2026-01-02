@@ -1,4 +1,4 @@
-import uiohook from 'uiohook-napi'
+import { uIOhook, UiohookKey } from 'uiohook-napi'
 import { EventEmitter } from 'events'
 import { HotkeyCombination } from '../../src/shared/types'
 
@@ -10,15 +10,14 @@ interface HotkeyConfig {
 type HotkeyType = 'pushToTalk' | 'toggle'
 
 // Uiohook event interface
-interface UiohookEvent {
-  type: string
+interface UiohookKeyboardEvent {
   keycode: number
-  mask: number
-  value: number
+  ctrlKey: boolean
+  shiftKey: boolean
+  altKey: boolean
+  metaKey: boolean
+  time: number
 }
-
-// Type assertion for uiohook API
-const uio = uiohook as any
 
 class GlobalShortcutsManager extends EventEmitter {
   private registered: boolean = false
@@ -60,26 +59,57 @@ class GlobalShortcutsManager extends EventEmitter {
   /**
    * Check if event matches the hotkey combination
    */
-  private matchesHotkey(event: UiohookEvent, hotkey: HotkeyCombination): boolean {
+  private matchesHotkey(event: UiohookKeyboardEvent, hotkey: HotkeyCombination): boolean {
     const keyCode = this.getKeyCode(hotkey.key)
-    const modifierMask = this.getModifierMask(hotkey.modifiers)
+    const expectedModifiers = hotkey.modifiers
+    
+    // DEBUG: Log matching details
+    console.log('[Hotkey Debug] Matching event:', {
+      eventKeycode: event.keycode,
+      eventCtrlKey: event.ctrlKey,
+      eventShiftKey: event.shiftKey,
+      eventAltKey: event.altKey,
+      eventMetaKey: event.metaKey,
+      expectedKeyCode: keyCode,
+      expectedModifiers: expectedModifiers
+    })
     
     // Check key code
-    if (event.keycode !== keyCode) return false
+    if (event.keycode !== keyCode) {
+      console.log('[Hotkey Debug] Key code mismatch:', event.keycode, '!==', keyCode)
+      return false
+    }
     
-    // Check modifiers (mask = 0x000F for all modifiers)
-    const eventModifiers = event.mask & 0x000F
-    return eventModifiers === modifierMask
+    // Check modifiers - uiohook-napi uses boolean properties
+    const modifiersMatch =
+      event.ctrlKey === !!expectedModifiers.ctrl &&
+      event.shiftKey === !!expectedModifiers.shift &&
+      event.altKey === !!expectedModifiers.alt &&
+      event.metaKey === !!expectedModifiers.meta
+    
+    console.log('[Hotkey Debug] Modifiers match:', modifiersMatch,
+      'Ctrl:', event.ctrlKey, '===', !!expectedModifiers.ctrl,
+      'Shift:', event.shiftKey, '===', !!expectedModifiers.shift,
+      'Alt:', event.altKey, '===', !!expectedModifiers.alt,
+      'Meta:', event.metaKey, '===', !!expectedModifiers.meta)
+    
+    return modifiersMatch
   }
 
   /**
    * Handle key down event
    */
-  private onKeyDown = (event: UiohookEvent) => {
-    if (!this.hotkeys) return
+  private onKeyDown = (event: UiohookKeyboardEvent) => {
+    console.log('[Hotkey Debug] KeyDown event received:', event)
+    
+    if (!this.hotkeys) {
+      console.log('[Hotkey Debug] No hotkeys configured')
+      return
+    }
 
     // Check push-to-talk hotkey
     if (this.matchesHotkey(event, this.hotkeys.pushToTalk)) {
+      console.log('[Hotkey Debug] Push-to-talk hotkey matched')
       if (!this.pushToTalkPressed) {
         this.pushToTalkPressed = true
         this.emit('hotkey-pressed', 'pushToTalk')
@@ -89,15 +119,18 @@ class GlobalShortcutsManager extends EventEmitter {
 
     // Check toggle hotkey
     if (this.matchesHotkey(event, this.hotkeys.toggle)) {
+      console.log('[Hotkey Debug] Toggle hotkey matched')
       this.emit('hotkey-pressed', 'toggle')
       return
     }
+    
+    console.log('[Hotkey Debug] No hotkey matched for this event')
   }
 
   /**
    * Handle key up event
    */
-  private onKeyUp = (event: UiohookEvent) => {
+  private onKeyUp = (event: UiohookKeyboardEvent) => {
     if (!this.hotkeys) return
 
     // Check push-to-talk hotkey release
@@ -114,26 +147,33 @@ class GlobalShortcutsManager extends EventEmitter {
    */
   registerHotkeys(hotkeys: HotkeyConfig): boolean {
     try {
+      console.log('[Hotkey Debug] Attempting to register hotkeys:', hotkeys)
+      
       // Unregister existing hotkeys first
       if (this.registered) {
+        console.log('[Hotkey Debug] Unregistering existing hotkeys')
         this.unregisterHotkeys()
       }
 
       this.hotkeys = hotkeys
       this.pushToTalkPressed = false
 
+      // Register event listeners BEFORE starting uiohook
+      console.log('[Hotkey Debug] Registering event listeners BEFORE starting uiohook...')
+      uIOhook.on('keydown', this.onKeyDown)
+      uIOhook.on('keyup', this.onKeyUp)
+      console.log('[Hotkey Debug] Event listeners registered')
+
       // Start uiohook
-      uio.start()
-      
-      // Register event listeners
-      uio.on('keydown', this.onKeyDown)
-      uio.on('keyup', this.onKeyUp)
+      console.log('[Hotkey Debug] Starting uiohook...')
+      uIOhook.start()
+      console.log('[Hotkey Debug] uiohook started successfully, PID:', process.pid)
 
       this.registered = true
-      console.log('Global hotkeys registered:', hotkeys)
+      console.log('[Hotkey Debug] Global hotkeys registered successfully:', hotkeys)
       return true
     } catch (error) {
-      console.error('Failed to register global hotkeys:', error)
+      console.error('[Hotkey Debug] Failed to register global hotkeys:', error)
       return false
     }
   }
@@ -144,9 +184,9 @@ class GlobalShortcutsManager extends EventEmitter {
   unregisterHotkeys(): void {
     try {
       if (this.registered) {
-        uio.removeListener('keydown', this.onKeyDown)
-        uio.removeListener('keyup', this.onKeyUp)
-        uio.stop()
+        uIOhook.removeListener('keydown', this.onKeyDown)
+        uIOhook.removeListener('keyup', this.onKeyUp)
+        uIOhook.stop()
         
         this.registered = false
         this.hotkeys = null

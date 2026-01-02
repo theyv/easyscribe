@@ -24,16 +24,17 @@ export function useSearch(deviceId: string) {
   const [results, setResults] = useState<SearchResultWithMetadata[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
 
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedQuery(debouncedQuery)
+      setDebouncedQuery(query)
     }, 300)
 
     return () => clearTimeout(timer)
-  }, [debouncedQuery])
+  }, [query])
 
   // Perform search
   const search = useCallback(async (options: SearchOptions) => {
@@ -160,7 +161,9 @@ export function useSearch(deviceId: string) {
     results,
     isLoading,
     error,
+    query,
     debouncedQuery,
+    setQuery,
 
     // Actions
     search,
