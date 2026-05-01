@@ -20,5 +20,8 @@ nemo_toolkit[asr]>=2.4.0
 # Opcjonalne - poprawia wydajność CUDA dla Parakeet v3
 cuda-python>=12.3
 
+# Opcjonalna diaryzacja 2-osobowa (CPU, bez tokenu HF)
+diarize>=0.1.1
+
 # GUI (opcjonalne, dla okienek dialogowych)
 # tkinter jest wbudowane w Python

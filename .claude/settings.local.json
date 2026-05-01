@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__web-search-prime__web_search_prime",
+      "WebSearch",
+      "mcp__octocode__githubSearchRepositories",
+      "mcp__octocode__githubGetFileContent",
+      "mcp__zread__get_repo_structure",
+      "mcp__zread__search_doc",
+      "mcp__octocode__githubViewRepoStructure",
+      "mcp__octocode__githubSearchCode"
+    ]
+  }
+}

@@ -5,6 +5,7 @@ import threading
 import time
 import os
 import sys
+import io
 import subprocess
 from datetime import datetime
 import signal
@@ -207,9 +208,12 @@ class AudioTranscriber:
     def __init__(self, audio_file_path=None, output_subdir=""):
         # --- wybór modelu ---
         self.model_type = self.ask_for_model_selection()
-        
+
         # --- preferencje formatowania ---
         self.use_timecodes = self.ask_for_format_preferences()
+
+        # --- diaryzacja ---
+        self.use_diarization, self.num_speakers = self.ask_for_diarization()
 
         # --- profil obciążenia GPU ---
         self.performance_profile = self.ask_for_performance_profile()
@@ -217,6 +221,9 @@ class AudioTranscriber:
 
         # --- initializacja modelu ---
         self.model = self._initialize_model()
+
+        # --- inicjalizacja diaryzacji (po modelu ASR, żeby VRAM był już zajęty) ---
+        self.diarization_pipeline = self._initialize_diarization() if self.use_diarization else None
 
         self.repeat_transcription = False
         self.sample_rate = 16000
@@ -269,6 +276,8 @@ class AudioTranscriber:
                     f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f'Input: "{self.input_name}"\n')
             f.write(f"Profil obciążenia: {self.performance_profile}\n")
+            if self.use_diarization:
+                f.write(f"Diaryzacja: tak ({self.num_speakers} rozmówców, FoxNoseTech/diarize)\n")
             f.write("-" * 50 + "\n")
 
         print(f"Utworzono plik: {self.output_file}")
@@ -428,6 +437,95 @@ class AudioTranscriber:
                 print("Nieprawidłowy wybór. Wpisz 1-5.")
             except KeyboardInterrupt:
                 sys.exit()
+
+    def ask_for_diarization(self):
+        print("\n" + "=" * 50)
+        print("DIARYZACJA (ROZRÓŻNIANIE 2 ROZMÓWCÓW)")
+        print("=" * 50)
+        print("1. Bez diaryzacji (domyślnie)")
+        print("2. Z diaryzacją – oznacza Rozmówca 1 / Rozmówca 2")
+        print("   (tylko tryb plikowy, działa na CPU obok GPU)")
+        print("-" * 50)
+
+        while True:
+            try:
+                choice = input("Wybierz opcję (1 lub 2, Enter = 1): ").strip()
+                if choice in ("", "1"):
+                    print("✓ Bez diaryzacji")
+                    return False, None
+                if choice == "2":
+                    print("✓ Diaryzacja włączona (2 rozmówców)")
+                    return True, 2
+                print("Nieprawidłowy wybór. Wpisz 1 lub 2.")
+            except KeyboardInterrupt:
+                sys.exit()
+
+    def _initialize_diarization(self):
+        if not self.use_diarization:
+            return None
+        try:
+            from diarize import diarize as _diarize_fn
+        except ImportError:
+            print("Brak biblioteki diarize. Instaluję...")
+            if not install_package("diarize"):
+                print("✗ Instalacja nieudana. Wyłączam diaryzację.")
+                self.use_diarization = False
+                return None
+            try:
+                from diarize import diarize as _diarize_fn
+            except ImportError as e:
+                print(f"✗ Import po instalacji nieudany: {e}. Wyłączam diaryzację.")
+                self.use_diarization = False
+                return None
+        print("✓ Biblioteka diarize gotowa (CPU pipeline)")
+        return _diarize_fn
+
+    def _run_diarization(self, audio_data, sample_rate):
+        if not self.diarization_pipeline:
+            return []
+        import tempfile, soundfile as sf
+        print("\nUruchamiam diaryzację (CPU)...")
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp_path = tmp.name
+            sf.write(tmp_path, audio_data, sample_rate)
+
+            f = io.StringIO()
+            old_stdout, old_stderr = sys.stdout, sys.stderr
+            try:
+                sys.stdout = f
+                sys.stderr = f
+                result = self.diarization_pipeline(
+                    tmp_path,
+                    num_speakers=self.num_speakers
+                )
+            finally:
+                sys.stdout = old_stdout
+                sys.stderr = old_stderr
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+
+            unique = sorted({s.speaker for s in result.segments})
+            speaker_map = {s: f"Rozmówca {i+1}" for i, s in enumerate(unique)}
+            turns = [(s.start, s.end, speaker_map[s.speaker]) for s in result.segments]
+            print(f"✓ Diaryzacja zakończona ({len(unique)} rozmówców, "
+                  f"{len(turns)} segmentów)")
+            return turns
+        except Exception as e:
+            print(f"✗ Błąd diaryzacji: {e}. Kontynuuję bez przypisania rozmówców.")
+            return []
+
+    def _assign_speaker(self, seg_start, seg_end, turns):
+        if not turns:
+            return None
+        best_speaker, best_overlap = None, 0.0
+        for t_start, t_end, speaker in turns:
+            overlap = min(seg_end, t_end) - max(seg_start, t_start)
+            if overlap > best_overlap:
+                best_overlap, best_speaker = overlap, speaker
+        return best_speaker
 
     def ask_for_format_preferences(self):
         print("\n" + "=" * 50)
@@ -662,19 +760,31 @@ class AudioTranscriber:
                 self.throttle_if_needed()
         return wrote_anything
 
-    def transcribe_audio_chunk(self, audio_chunk, offset_seconds):
+    def _get_segments_from_chunk(self, audio_chunk):
         if self.model_type.startswith("whisper-"):
-            segments, info = self._transcribe_with_whisper(audio_chunk)
-        else:
-            segments, info = self._transcribe_with_parakeet(audio_chunk)
+            return self._transcribe_with_whisper(audio_chunk)
+        return self._transcribe_with_parakeet(audio_chunk)
 
-        self.write_segments(segments, offset_seconds)
+    def transcribe_audio_chunk(self, audio_chunk, offset_seconds, collect=None):
+        segments, info = self._get_segments_from_chunk(audio_chunk)
+
+        if collect is not None:
+            for seg in segments:
+                if seg.text.strip():
+                    collect.append((
+                        seg.start + offset_seconds,
+                        seg.end + offset_seconds,
+                        seg.text.strip()
+                    ))
+                    print(seg.text.strip())
+        else:
+            self.write_segments(segments, offset_seconds)
         return info
 
-    def transcribe_audio_chunk_with_retry(self, audio_chunk, offset_seconds):
+    def transcribe_audio_chunk_with_retry(self, audio_chunk, offset_seconds, collect=None):
         duration = len(audio_chunk) / self.sample_rate
         try:
-            return self.transcribe_audio_chunk(audio_chunk, offset_seconds)
+            return self.transcribe_audio_chunk(audio_chunk, offset_seconds, collect=collect)
         except Exception as e:
             if not self.is_cuda_oom(e) or duration <= 35:
                 raise
@@ -683,18 +793,40 @@ class AudioTranscriber:
             half = len(audio_chunk) // 2
             print(f"\nCUDA OOM na kawałku {duration:.1f}s. Dzielę go na pół i próbuję dalej.")
 
-            first_info = self.transcribe_audio_chunk_with_retry(audio_chunk[:half], offset_seconds)
+            first_info = self.transcribe_audio_chunk_with_retry(
+                audio_chunk[:half], offset_seconds, collect=collect
+            )
             self.transcribe_audio_chunk_with_retry(
                 audio_chunk[half:],
-                offset_seconds + (half / self.sample_rate)
+                offset_seconds + (half / self.sample_rate),
+                collect=collect
             )
             return first_info
 
-    def transcribe_file(self, show_finished_dialog=True):
+    def _write_diarized_segments(self, segments, turns):
+        with open(self.output_file, "a", encoding="utf-8") as f:
+            for abs_start, abs_end, text in segments:
+                speaker = self._assign_speaker(abs_start, abs_end, turns)
+                label = f"[{speaker}] " if speaker else ""
+                if self.use_timecodes:
+                    t = int(abs_start)
+                    ts = f"[{t//3600:02d}:{(t%3600)//60:02d}:{t%60:02d}] "
+                else:
+                    ts = ""
+                line = f"{ts}{label}{text}\n"
+                f.write(line)
+                print(line, end="")
+
+    def transcribe_file(self, show_finished_dialog=True, file_index=None, total_files=None):
         """Transkrybuje plik audio"""
-        print(f"\nTranskrybowanie pliku: {os.path.basename(self.audio_file_path)}")
+        file_basename = os.path.basename(self.audio_file_path)
+        if file_index is not None and total_files is not None:
+            self._progress_label = f"[Plik {file_index}/{total_files}: {file_basename}]"
+        else:
+            self._progress_label = f"[{file_basename}]"
+        print(f"\nTranskrybowanie pliku: {file_basename}")
         print("Proszę czekać...")
-        
+
         try:
             # Wczytaj plik audio
             audio_data, sr = load_audio_file(self.audio_file_path)
@@ -707,17 +839,20 @@ class AudioTranscriber:
             print("\nTranskrypcja:")
             print("-" * 50)
 
+            collected = [] if self.use_diarization else None
             first_info = None
             total_chunks = max(1, (len(audio_data) + chunk_samples - 1) // chunk_samples)
             for chunk_index, start_sample in enumerate(range(0, len(audio_data), chunk_samples), start=1):
                 end_sample = min(start_sample + chunk_samples, len(audio_data))
                 offset_seconds = start_sample / self.sample_rate
                 chunk_duration = (end_sample - start_sample) / self.sample_rate
-                print(f"\n--- Chunk {chunk_index}/{total_chunks}: {offset_seconds:.1f}s + {chunk_duration:.1f}s ---")
+                print(f"\n--- {self._progress_label} Chunk {chunk_index}/{total_chunks}: "
+                      f"{offset_seconds:.1f}s + {chunk_duration:.1f}s ---")
 
                 info = self.transcribe_audio_chunk_with_retry(
                     audio_data[start_sample:end_sample],
-                    offset_seconds
+                    offset_seconds,
+                    collect=collected
                 )
                 if first_info is None:
                     first_info = info
@@ -727,6 +862,14 @@ class AudioTranscriber:
             if first_info is not None:
                 print(f"\nWykryto język: {first_info.language} "
                       f"(prawdopodobieństwo: {first_info.language_probability:.2f})")
+
+            if self.use_diarization and collected is not None:
+                self.clear_cuda_cache()
+                speaker_turns = self._run_diarization(audio_data, sr)
+                print("\n" + "-" * 50)
+                print("Transkrypcja z diaryzacją:")
+                print("-" * 50)
+                self._write_diarized_segments(collected, speaker_turns)
             
         except Exception as e:
             print(f"Błąd podczas transkrypcji: {e}")
@@ -828,6 +971,10 @@ class AudioTranscriber:
         if self.is_file_mode:
             self.transcribe_file()
         else:
+            if self.use_diarization:
+                print("\n⚠ Diaryzacja nie jest wspierana w trybie mikrofonu (wymaga całego pliku).")
+                print("  Kontynuuję bez diaryzacji.")
+                self.use_diarization = False
             self.start_microphone_recording()
 
 
@@ -900,7 +1047,25 @@ def main():
             print("\n" + "=" * 50)
             print(f"PLIK {index}/{len(audio_items)}")
             print("=" * 50)
-            success = transcriber.transcribe_file(show_finished_dialog=False)
+            try:
+                success = transcriber.transcribe_file(
+                    show_finished_dialog=False,
+                    file_index=index,
+                    total_files=len(audio_items),
+                )
+            except KeyboardInterrupt:
+                print(f"\n\nPrzerwano plik {index}/{len(audio_items)}.")
+                if index < len(audio_items):
+                    remaining = len(audio_items) - index
+                    try:
+                        choice = input(f"Pominąć ten plik i kontynuować pozostałe {remaining}? (t/N): ").strip().lower()
+                    except KeyboardInterrupt:
+                        print("\nPrzerywam wszystko.")
+                        break
+                    if choice in ("t", "tak", "y", "yes"):
+                        continue
+                print("Przerywam przetwarzanie.")
+                break
             if not success:
                 choice = input("Transkrypcja tego pliku się nie udała. Kontynuować z następnym? (T/n): ").strip().lower()
                 if choice in ("n", "no", "nie"):
