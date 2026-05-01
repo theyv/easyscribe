@@ -1,111 +1,121 @@
-# EasyScribe - Transkrypcja Audio (Whisper & Parakeet v3)
+# EasyScribe - Audio Transcription (Whisper & Parakeet v3)
 
-Aplikacja do transkrypcji audio z możliwością wyboru między dwoma typami modeli AI:
-- **Faster Whisper** - szybki model z wyborem rozmiaru (tiny/base/small/medium/large-v3)
-- **NVIDIA Parakeet v3** - nowoczesny, wielojęzyczny model
+EasyScribe is an audio transcription app with a choice between two AI model families:
+- **Faster Whisper** - a fast model with selectable sizes (tiny/base/small/medium/large-v3)
+- **NVIDIA Parakeet v3** - a modern multilingual model
 
-## Funkcje
+## Features
 
-- ✅ Transkrypcja plików audio (drag & drop)
-- ✅ Nagrywanie na żywo z mikrofonu
-- ✅ Wybór modelu AI (Whisper lub Parakeet v3)
-- ✅ Opcje formatowania (z/bez timecodów)
-- ✅ Automatyczne wykrywanie języka
-- ✅ Obsługa GPU (CUDA) dla szybszej transkrypcji
-- ✅ Automatyczne pobieranie brakujących bibliotek
-- ✅ Zapisywanie wyników w folderze `output`
-- ✅ Ciche działanie (wyciszone logi bibliotek)
+- Audio file transcription via drag and drop
+- Live microphone recording
+- AI model selection (Whisper or Parakeet v3)
+- Formatting options with or without timestamps
+- Automatic language detection
+- CUDA GPU support for faster transcription
+- Automatic installation of missing packages
+- Output saved to the `output` folder
+- Quiet operation with library logs silenced by default
+- Optional two-speaker diarization through FoxNoseTech/diarize
+- Parallel CPU diarization while GPU transcription continues
 
-## Wymagania
+## Requirements
 
-### Podstawowe
+### Basic
 ```bash
 pip install sounddevice numpy
 ```
 
-### Dla plików audio (wybierz jedną opcję)
+### Audio File Support
+Choose one option:
+
 ```bash
 pip install librosa
-# lub
+# or
 pip install soundfile
 ```
 
-### Dla Faster Whisper
+### Faster Whisper
 ```bash
 pip install faster-whisper
 ```
 
-### Dla NVIDIA Parakeet v3
+### NVIDIA Parakeet v3
 ```bash
 pip install nemo_toolkit[asr]
 ```
 
-### Instalacja wszystkich zależności
+### All Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-## Użytkowanie
+## Usage
 
-### Uruchomienie
-1. **Tryb mikrofonu**: Uruchom `easyscribe.bat` lub `python easyscribe.py`
-2. **Tryb pliku**: Przeciągnij plik audio na `easyscribe.bat`
+### Start
+1. **Microphone mode**: run `easyscribe.bat` or `python easyscribe.py`
+2. **File mode**: drag an audio file onto `easyscribe.bat`, or pass files/folders as arguments
 
-### Automatyczna instalacja
-Aplikacja automatycznie wykryje i zainstaluje brakujące biblioteki przy pierwszym uruchomieniu.
+### Automatic Installation
+The app detects and installs missing packages on first run.
 
-### Wybór modelu
-Po uruchomieniu aplikacja zapyta o wybór modelu:
-- **1** - Faster Whisper (następnie wybierz rozmiar: tiny/base/small/medium/large-v3)
-- **2** - NVIDIA Parakeet v3 (nowoczesny, wielojęzyczny)
+### Model Selection
+On startup, the app asks which model to use:
+- **1** - Faster Whisper, then choose a size: tiny/base/small/medium/large-v3
+- **2** - NVIDIA Parakeet v3
 
-### Obsługiwane formaty
+### Diarization
+If diarization is enabled, EasyScribe saves a raw transcription live first. When diarization finishes, the output file is rewritten with speaker labels.
+
+For multiple files, transcription can continue on the GPU while CPU diarization runs in the background. The default number of parallel diarization workers is 3.
+
+### Supported Formats
 - Audio: `.wav`, `.mp3`, `.m4a`, `.flac`, `.ogg`, `.aac`
-- Wideo: `.mp4`, `.mkv`, `.avi`, `.mov`
+- Video: `.mp4`, `.mkv`, `.avi`, `.mov`
 
-## Porównanie modeli
+## Model Comparison
 
-| Model | Rozmiar | Zalety | Wady |
-|-------|---------|--------|------|
-| **Faster Whisper** | tiny | - Najszybszy<br>- Najmniejsze zużycie RAM | - Najmniej dokładny |
-| | base | - Szybki<br>- Dobra jakość | - Średnie zużycie zasobów |
-| | small | - Średnia szybkość<br>- Lepsza jakość | - Większe zużycie zasobów |
-| | medium | - Wolniejszy<br>- Wysoka jakość | - Duże zużycie zasobów |
-| | large-v3 | - Najwyższa jakość | - Najwolniejszy<br>- Największe zużycie RAM |
-| **Parakeet v3** | - | - Bardzo wysoka dokładność<br>- Wielojęzyczny<br>- Automatyczne wykrywanie języka | - Wymaga NeMo<br>- Większe zużycie zasobów |
+| Model | Size | Pros | Cons |
+|-------|------|------|------|
+| **Faster Whisper** | tiny | Fastest, lowest RAM usage | Least accurate |
+| | base | Fast, good quality | Medium resource usage |
+| | small | Medium speed, better quality | Higher resource usage |
+| | medium | Slower, high quality | High resource usage |
+| | large-v3 | Best quality | Slowest, highest RAM usage |
+| **Parakeet v3** | - | Very high accuracy, multilingual, automatic language detection | Requires NeMo, higher resource usage |
 
-## Struktura plików
+## Project Structure
 
+```text
+easyscribe/
+├── easyscribe.py               # Main application
+├── easyscribe.bat              # Windows launcher
+├── requirements.txt            # Dependency list
+├── README.md                   # This documentation
+├── models/                     # AI model directory
+└── output/                     # Transcription output directory
 ```
-transcribe py/
-├── easyscribe.py               # Główna aplikacja
-├── easyscribe.bat              # Skrypt uruchamiający
-├── requirements.txt            # Lista zależności
-├── README.md                   # Ta dokumentacja
-├── models/                     # Katalog na modele AI
-└── output/                     # Katalog z transkrypcjami
-```
 
-## Rozwiązywanie problemów
+## Troubleshooting
 
-### Błąd CUDA
-Jeśli CUDA nie jest dostępne, aplikacja automatycznie przełączy się na CPU (może być wolne).
+### CUDA Error
+If CUDA is unavailable, the app can continue on CPU, but it will be slower.
 
-### Brak bibliotek dla Parakeet v3
-Jeśli brakuje `nemo_toolkit[asr]`, aplikacja automatycznie przełączy się na Whisper.
+### Missing Parakeet v3 Libraries
+If `nemo_toolkit[asr]` is missing or Parakeet fails to load, the app switches to Whisper automatically.
 
-### Logi Parakeet v3
-Domyślnie logi NeMo są wyciszone. Aby je włączyć, ustaw zmienną środowiskową:
+### Parakeet v3 Logs
+NeMo logs are silenced by default. To enable them, set:
+
 ```bash
 set SHOW_NEMO_LOGS=1
 easyscribe.bat
 ```
 
-### Problemy z audio
-Sprawdź czy masz zainstalowane odpowiednie biblioteki audio (`librosa` lub `soundfile`).
+### Audio Issues
+Make sure the required audio libraries are installed (`librosa` or `soundfile`).
 
-## Licencja
+## License
 
-Aplikacja wykorzystuje otwarte modele AI:
+EasyScribe uses open AI models:
 - Faster Whisper: MIT License
 - NVIDIA Parakeet v3: Apache 2.0 License

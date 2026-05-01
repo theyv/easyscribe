@@ -13,18 +13,18 @@ import signal
 SUPPORTED_EXTENSIONS = ['.wav', '.mp3', '.m4a', '.flac', '.ogg', '.aac', '.mp4', '.mkv', '.avi', '.mov']
 
 def install_package(package_name):
-    """Automatycznie instaluje brakującą bibliotekę"""
-    print(f"Automatycznie instaluję {package_name}...")
+    """Automatically installs a missing package."""
+    print(f"Automatically installing {package_name}...")
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
-        print(f"✓ {package_name} zainstalowane pomyślnie!")
+        print(f"✓ {package_name} installed successfully!")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"✗ Błąd podczas instalacji {package_name}: {e}")
+        print(f"✗ Error while installing {package_name}: {e}")
         return False
 
 def check_and_install_dependencies():
-    """Sprawdza i instaluje brakujące zależności"""
+    """Checks and installs missing dependencies."""
     required_packages = {
         'torch': 'torch',
         'torchaudio': 'torchaudio',
@@ -44,36 +44,36 @@ def check_and_install_dependencies():
     
     if missing_packages:
         print("\n" + "=" * 50)
-        print("WYKRYTO BRAKUJĄCE BIBLIOTEKI")
+        print("MISSING DEPENDENCIES DETECTED")
         print("=" * 50)
         
         for import_name, package_name in missing_packages:
-            print(f"Brakuje: {package_name}")
+            print(f"Missing: {package_name}")
         
-        print("\nAutomatycznie instaluję brakujące biblioteki...")
+        print("\nAutomatically installing missing packages...")
         print("-" * 50)
         
         for import_name, package_name in missing_packages:
             if not install_package(package_name):
-                print(f"Nie udało się zainstalować {package_name}")
+                print(f"Failed to install {package_name}")
                 return False
         
-        print("\n✓ Wszystkie biblioteki zainstalowane!")
-        print("Uruchamiam ponownie aplikację...")
+        print("\n✓ All packages installed!")
+        print("Restarting the application...")
         return True
     
     return False
 
-# --- okienko końcowe (Tkinter) ---
+# --- final dialog (Tkinter) ---
 def finished_dialog(path):
     try:
         import tkinter as tk
         root = tk.Tk()
-        root.title("Transkrypcja zakończona")
+        root.title("Transcription complete")
         root.geometry("500x140")
         root.resizable(False, False)
 
-        tk.Label(root, text=f"Zapisano w:\n{path}", pady=15).pack()
+        tk.Label(root, text=f"Saved to:\n{path}", pady=15).pack()
 
         answer = {"repeat": False}
 
@@ -93,13 +93,13 @@ def finished_dialog(path):
         root.mainloop()
         return answer["repeat"]
     except Exception:
-        # Jeśli Tkinter zawiedzie (np. brak GUI), fallback do konsoli
-        choice = input(f"\nZapisano w:\n{path}\n\nPonowić transkrypcję? (T/n): ").strip().lower()
-        return choice in ("", "t", "tak", "y", "yes")
+        # If Tkinter fails (for example, no GUI), fall back to the console.
+        choice = input(f"\nSaved to:\n{path}\n\nRepeat transcription? (Y/n): ").strip().lower()
+        return choice in ("", "y", "yes", "t", "tak")
 
 
 def check_audio_libraries():
-    """Sprawdza dostępność bibliotek do obsługi plików audio"""
+    """Checks for libraries used to load audio files."""
     try:
         import librosa
         return 'librosa'
@@ -108,22 +108,22 @@ def check_audio_libraries():
             import soundfile as sf
             return 'soundfile'
         except ImportError:
-            print("BŁĄD: Brak wymaganych bibliotek do obsługi plików audio!")
-            print("Zainstaluj jedną z bibliotek:")
+            print("ERROR: Missing required audio libraries!")
+            print("Install one of these packages:")
             print("  pip install librosa")
-            print("  lub")
+            print("  or")
             print("  pip install soundfile")
             sys.exit(1)
 
 
 def load_audio_file(file_path):
-    """Wczytuje plik audio i zwraca dane audio + sample rate"""
+    """Loads an audio file and returns audio data plus sample rate."""
     audio_lib = check_audio_libraries()
     
     try:
         if audio_lib == 'librosa':
             import librosa
-            # Librosa domyślnie ładuje jako mono z 22050 Hz, zmieniamy na 16000 Hz dla Whisper
+            # Librosa loads mono at 22050 Hz by default; resample to 16000 Hz for Whisper.
             audio_data, sr = librosa.load(file_path, sr=16000, mono=True)
             return audio_data.astype(np.float32), sr
             
@@ -132,16 +132,16 @@ def load_audio_file(file_path):
             import librosa
             # Soundfile + librosa do resample
             audio_data, orig_sr = sf.read(file_path)
-            # Konwersja na mono jeśli stereo
+            # Convert to mono if the file is stereo.
             if len(audio_data.shape) > 1:
                 audio_data = np.mean(audio_data, axis=1)
-            # Resample do 16kHz
+            # Resample to 16 kHz.
             if orig_sr != 16000:
                 audio_data = librosa.resample(audio_data, orig_sr=orig_sr, target_sr=16000)
             return audio_data.astype(np.float32), 16000
             
     except Exception as e:
-        print(f"Błąd podczas wczytywania pliku {file_path}: {e}")
+        print(f"Error while loading file {file_path}: {e}")
         sys.exit(1)
 
 
@@ -159,14 +159,14 @@ def collect_audio_inputs(paths):
         input_path = os.path.abspath(input_path)
 
         if not os.path.exists(input_path):
-            print(f"BŁĄD: Ścieżka '{input_path}' nie istnieje!")
-            input("Naciśnij Enter aby zakończyć...")
+            print(f"ERROR: Path '{input_path}' does not exist!")
+            input("Press Enter to exit...")
             return None
 
         if os.path.isdir(input_path):
             root_parent = os.path.dirname(input_path)
             found_in_dir = 0
-            print(f"Skanuję folder: {input_path}")
+            print(f"Scanning folder: {input_path}")
 
             for current_dir, dir_names, file_names in os.walk(input_path):
                 dir_names[:] = [name for name in dir_names if name.lower() != "output"]
@@ -180,22 +180,22 @@ def collect_audio_inputs(paths):
                         found_in_dir += 1
 
             if found_in_dir == 0:
-                print(f"OSTRZEŻENIE: Nie znaleziono obsługiwanych nagrań w folderze: {input_path}")
+                print(f"WARNING: No supported recordings found in folder: {input_path}")
             else:
-                print(f"Znaleziono {found_in_dir} plików audio/wideo w folderze.")
+                print(f"Found {found_in_dir} audio/video files in the folder.")
 
             continue
 
         if not os.path.isfile(input_path):
-            print(f"BŁĄD: '{input_path}' nie jest plikiem ani folderem.")
-            input("Naciśnij Enter aby zakończyć...")
+            print(f"ERROR: '{input_path}' is neither a file nor a folder.")
+            input("Press Enter to exit...")
             return None
 
         file_ext = os.path.splitext(input_path)[1].lower()
         if file_ext not in SUPPORTED_EXTENSIONS:
-            print(f"OSTRZEŻENIE: Rozszerzenie '{file_ext}' może nie być obsługiwane.")
-            print(f"Obsługiwane formaty: {', '.join(SUPPORTED_EXTENSIONS)}")
-            choice = input("Czy chcesz kontynuować? (T/n): ").strip().lower()
+            print(f"WARNING: Extension '{file_ext}' may not be supported.")
+            print(f"Supported formats: {', '.join(SUPPORTED_EXTENSIONS)}")
+            choice = input("Do you want to continue? (Y/n): ").strip().lower()
             if choice in ("n", "no", "nie"):
                 return None
 
@@ -206,24 +206,24 @@ def collect_audio_inputs(paths):
 
 class AudioTranscriber:
     def __init__(self, audio_file_path=None, output_subdir=""):
-        # --- wybór modelu ---
+        # --- model selection ---
         self.model_type = self.ask_for_model_selection()
 
-        # --- preferencje formatowania ---
+        # --- formatting preferences ---
         self.use_timecodes = self.ask_for_format_preferences()
 
-        # --- diaryzacja ---
+        # --- diarization ---
         self.use_diarization, self.num_speakers = self.ask_for_diarization()
         self.diarization_workers = self.ask_for_diarization_workers() if self.use_diarization else 1
 
-        # --- profil obciążenia GPU ---
+        # --- GPU load profile ---
         self.performance_profile = self.ask_for_performance_profile()
         self.apply_performance_profile()
 
-        # --- initializacja modelu ---
+        # --- model initialization ---
         self.model = self._initialize_model()
 
-        # --- inicjalizacja diaryzacji (po modelu ASR, żeby VRAM był już zajęty) ---
+        # --- diarization initialization (after ASR model so VRAM is already allocated) ---
         self.diarization_pipeline = self._initialize_diarization() if self.use_diarization else None
 
         self.repeat_transcription = False
@@ -233,7 +233,7 @@ class AudioTranscriber:
 
         self.set_audio_source(audio_file_path, output_subdir)
 
-        # --- konfiguracja dla nagrywania z mikrofonu ---
+        # --- microphone recording configuration ---
         if not self.is_file_mode:
             self.audio_queue = queue.Queue()
             self.is_running = False
@@ -245,9 +245,9 @@ class AudioTranscriber:
         self.audio_file_path = audio_file_path
         self.is_file_mode = audio_file_path is not None
 
-        # --- nazwa źródła audio ---
+        # --- audio source name ---
         if self.is_file_mode:
-            self.input_name = f"Plik: {os.path.basename(audio_file_path)}"
+            self.input_name = f"File: {os.path.basename(audio_file_path)}"
         else:
             try:
                 self.input_idx = sd.default.device[0]
@@ -256,7 +256,7 @@ class AudioTranscriber:
                 self.input_idx = None
                 self.input_name = "Unknown"
 
-        # --- ścieżka wyjściowa ---
+        # --- output path ---
         timestamp = datetime.now().strftime('%Y_%m_%d - %H-%M')  # Windows‑friendly
         if self.is_file_mode:
             base_name = os.path.splitext(os.path.basename(audio_file_path))[0]
@@ -266,29 +266,29 @@ class AudioTranscriber:
         else:
             self.output_file = os.path.join(self.output_dir, f"{timestamp}.txt")
 
-        # --- nagłówek pliku ---
+        # --- file header ---
         if self.model_type.startswith("whisper-"):
             model_size = self.model_type.replace("whisper-", "")
             model_name = f"Faster Whisper {model_size}"
         else:  # parakeet
             model_name = "NVIDIA Parakeet v3"
         with open(self.output_file, "w", encoding="utf-8") as f:
-            f.write(f"Transkrypcja ({model_name}): "
+            f.write(f"Transcription ({model_name}): "
                     f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f'Input: "{self.input_name}"\n')
-            f.write(f"Profil obciążenia: {self.performance_profile}\n")
+            f.write(f"Load profile: {self.performance_profile}\n")
             if self.use_diarization:
-                f.write(f"Diaryzacja: tak ({self.num_speakers} rozmówców, FoxNoseTech/diarize)\n")
-                f.write(f"Równoległe diaryzacje: {self.diarization_workers}\n")
+                f.write(f"Diarization: yes ({self.num_speakers} speakers, FoxNoseTech/diarize)\n")
+                f.write(f"Parallel diarizations: {self.diarization_workers}\n")
             f.write("-" * 50 + "\n")
 
-        print(f"Utworzono plik: {self.output_file}")
-        print(f"Źródło audio: {self.input_name}")
+        print(f"Created file: {self.output_file}")
+        print(f"Audio source: {self.input_name}")
 
     def _initialize_model(self):
-        """Inicjalizuje wybrany model transkrypcji"""
+        """Initializes the selected transcription model."""
         if self.model_type.startswith("whisper-"):
-            # Wyciągnij rozmiar modelu (np. "large-v3" z "whisper-large-v3")
+            # Extract the model size (for example, "large-v3" from "whisper-large-v3")
             model_size = self.model_type.replace("whisper-", "")
 
             device = "cuda"
@@ -296,24 +296,24 @@ class AudioTranscriber:
             try:
                 import torch
                 if not torch.cuda.is_available():
-                    print("UWAGA: PyTorch nie widzi CUDA/GPU.")
-                    choice = input("Kontynuować wolniej na CPU? (t/N): ").strip().lower()
+                    print("WARNING: PyTorch does not see CUDA/GPU.")
+                    choice = input("Continue on CPU, which will be slower? (y/N): ").strip().lower()
                     if choice not in ("t", "tak", "y", "yes"):
                         sys.exit(1)
                     device = "cpu"
                     compute_type = "int8"
                 else:
                     gpu_name = torch.cuda.get_device_name(0)
-                    print(f"GPU CUDA wykryte: {gpu_name}")
+                    print(f"CUDA GPU detected: {gpu_name}")
                     if self.performance_profile != "full":
                         compute_type = "int8_float16"
-                        print("Profil oszczędny: używam int8_float16, żeby zmniejszyć zużycie VRAM.")
+                        print("Economy profile: using int8_float16 to reduce VRAM usage.")
             except ImportError:
-                print("UWAGA: Nie mogę sprawdzić CUDA, bo brakuje pakietu torch.")
-                print("Próbuję uruchomić Faster Whisper na CUDA.")
+                print("WARNING: Cannot check CUDA because torch is missing.")
+                print("Trying to run Faster Whisper on CUDA.")
 
-            print(f"Ładowanie modelu Faster Whisper ({model_size}) na {device} ({compute_type})...")
-            print("(Pierwsze uruchomienie może potrwać dłużej – model musi zostać pobrany)")
+            print(f"Loading Faster Whisper model ({model_size}) on {device} ({compute_type})...")
+            print("(The first run may take longer because the model needs to be downloaded)")
             
             from faster_whisper import WhisperModel
             return WhisperModel(
@@ -325,34 +325,34 @@ class AudioTranscriber:
         
         
         elif self.model_type == "parakeet":
-            print("Ładowanie modelu NVIDIA Parakeet v3...")
-            print("(Wymaga NVIDIA NeMo Toolkit - może potrwać dłużej)")
+            print("Loading NVIDIA Parakeet v3 model...")
+            print("(Requires NVIDIA NeMo Toolkit - this may take longer)")
             
             try:
-                # Wycisz logi NeMo - bardziej agresywne podejście
+                # Silence NeMo logs more aggressively.
                 import logging
                 import os
                 import sys
                 from contextlib import redirect_stdout, redirect_stderr
                 import io
                 
-                # Ustaw zmienne środowiskowe dla NeMo
+                # Set environment variables for NeMo.
                 os.environ["NEMO_LOGGING_LEVEL"] = "ERROR"
                 os.environ["NVIDIA_TF32_OVERRIDE"] = "0"
                 
-                # Wycisz wszystkie logi Python
+                # Silence all Python logs.
                 logging.getLogger().setLevel(logging.CRITICAL)
                 logging.getLogger("nemo").setLevel(logging.CRITICAL)
                 logging.getLogger("nemo_logging").setLevel(logging.CRITICAL)
                 
-                # Przechwytuj stdout i stderr podczas ładowania modelu
+                # Capture stdout and stderr while loading the model.
                 f = io.StringIO()
                 with redirect_stdout(f), redirect_stderr(f):
                     import nemo.collections.asr as nemo_asr
-                    print("✓ NVIDIA NeMo Toolkit dostępny")
+                    print("✓ NVIDIA NeMo Toolkit available")
                     
-                    # Załaduj model Parakeet v3 przez NeMo
-                    print("Ładowanie modelu nvidia/parakeet-tdt-0.6b-v3...")
+                    # Load the Parakeet v3 model through NeMo.
+                    print("Loading nvidia/parakeet-tdt-0.6b-v3 model...")
                     asr_model = nemo_asr.models.ASRModel.from_pretrained(
                         model_name="nvidia/parakeet-tdt-0.6b-v3"
                     )
@@ -365,124 +365,124 @@ class AudioTranscriber:
                     except Exception:
                         pass
                 
-                print("✓ Pomyślnie załadowano model Parakeet v3")
+                print("✓ Successfully loaded the Parakeet v3 model")
                 return {"model": asr_model, "type": "nemo"}
                 
             except ImportError as e:
-                print(f"BŁĄD: Brak wymaganych bibliotek dla Parakeet v3: {e}")
-                print("Parakeet v3 wymaga NVIDIA NeMo Toolkit:")
+                print(f"ERROR: Missing required libraries for Parakeet v3: {e}")
+                print("Parakeet v3 requires NVIDIA NeMo Toolkit:")
                 print("pip install -U nemo_toolkit[asr]")
-                print("Automatycznie przełączam na Whisper...")
+                print("Switching to Whisper automatically...")
                 self.model_type = "whisper-large-v3"
                 return self._initialize_model()
             except Exception as e:
-                print(f"BŁĄD podczas ładowania Parakeet v3: {e}")
-                print("Automatycznie przełączam na Whisper...")
+                print(f"ERROR while loading Parakeet v3: {e}")
+                print("Switching to Whisper automatically...")
                 self.model_type = "whisper-large-v3"
                 return self._initialize_model()
         
         else:
-            raise ValueError(f"Nieznany typ modelu: {self.model_type}")
+            raise ValueError(f"Unknown model type: {self.model_type}")
 
     # ----------------------------------------------------------------
 
     def ask_for_model_selection(self):
         print("\n" + "=" * 50)
-        print("WYBÓR MODELU TRANSKRYPCJI")
+        print("TRANSCRIPTION MODEL SELECTION")
         print("=" * 50)
-        print("1. Faster Whisper - szybki, wybierz rozmiar")
-        print("2. NVIDIA Parakeet v3 - nowoczesny, wielojęzyczny")
+        print("1. Faster Whisper - fast, choose a size")
+        print("2. NVIDIA Parakeet v3 - modern, multilingual")
         print("-" * 50)
 
         while True:
             try:
-                choice = input("Wybierz model (1 lub 2, Enter = 1): ").strip()
+                choice = input("Choose a model (1 or 2, Enter = 1): ").strip()
                 if choice in ("", "1"):
                     return self.ask_for_whisper_size()
                 if choice == "2":
-                    print("✓ Wybrano: NVIDIA Parakeet v3")
+                    print("✓ Selected: NVIDIA Parakeet v3")
                     return "parakeet"
-                print("Nieprawidłowy wybór. Wpisz 1 lub 2.")
+                print("Invalid choice. Enter 1 or 2.")
             except KeyboardInterrupt:
                 sys.exit()
 
     def ask_for_whisper_size(self):
-        """Pyta o rozmiar modelu Faster Whisper"""
+        """Asks for the Faster Whisper model size."""
         print("\n" + "=" * 50)
-        print("ROZMIAR MODELU FASTER WHISPER")
+        print("FASTER WHISPER MODEL SIZE")
         print("=" * 50)
-        print("1. tiny     - najszybszy, najmniej dokładny")
-        print("2. base     - szybki, dobra jakość")
-        print("3. small    - średni, lepsza jakość")
-        print("4. medium   - wolniejszy, wysoka jakość")
-        print("5. large-v3 - najwolniejszy, najwyższa jakość (domyślny)")
+        print("1. tiny     - fastest, least accurate")
+        print("2. base     - fast, good quality")
+        print("3. small    - medium speed, better quality")
+        print("4. medium   - slower, high quality")
+        print("5. large-v3 - slowest, highest quality (default)")
         print("-" * 50)
 
         while True:
             try:
-                choice = input("Wybierz rozmiar (1-5, Enter = 5): ").strip()
+                choice = input("Choose a size (1-5, Enter = 5): ").strip()
                 if choice in ("", "5"):
-                    print("✓ Wybrano: Faster Whisper (large-v3)")
+                    print("✓ Selected: Faster Whisper (large-v3)")
                     return "whisper-large-v3"
                 if choice == "1":
-                    print("✓ Wybrano: Faster Whisper (tiny)")
+                    print("✓ Selected: Faster Whisper (tiny)")
                     return "whisper-tiny"
                 if choice == "2":
-                    print("✓ Wybrano: Faster Whisper (base)")
+                    print("✓ Selected: Faster Whisper (base)")
                     return "whisper-base"
                 if choice == "3":
-                    print("✓ Wybrano: Faster Whisper (small)")
+                    print("✓ Selected: Faster Whisper (small)")
                     return "whisper-small"
                 if choice == "4":
-                    print("✓ Wybrano: Faster Whisper (medium)")
+                    print("✓ Selected: Faster Whisper (medium)")
                     return "whisper-medium"
-                print("Nieprawidłowy wybór. Wpisz 1-5.")
+                print("Invalid choice. Enter 1-5.")
             except KeyboardInterrupt:
                 sys.exit()
 
     def ask_for_diarization(self):
         print("\n" + "=" * 50)
-        print("DIARYZACJA (ROZRÓŻNIANIE 2 ROZMÓWCÓW)")
+        print("DIARIZATION (2-SPEAKER SEPARATION)")
         print("=" * 50)
-        print("1. Bez diaryzacji (domyślnie)")
-        print("2. Z diaryzacją – oznacza Rozmówca 1 / Rozmówca 2")
-        print("   (tylko tryb plikowy, działa na CPU obok GPU)")
+        print("1. No diarization (default)")
+        print("2. With diarization - labels Speaker 1 / Speaker 2")
+        print("   (file mode only, runs on CPU alongside GPU)")
         print("-" * 50)
 
         while True:
             try:
-                choice = input("Wybierz opcję (1 lub 2, Enter = 1): ").strip()
+                choice = input("Choose an option (1 or 2, Enter = 1): ").strip()
                 if choice in ("", "1"):
-                    print("✓ Bez diaryzacji")
+                    print("✓ No diarization")
                     return False, None
                 if choice == "2":
-                    print("✓ Diaryzacja włączona (2 rozmówców)")
+                    print("✓ Diarization enabled (2 speakers)")
                     return True, 2
-                print("Nieprawidłowy wybór. Wpisz 1 lub 2.")
+                print("Invalid choice. Enter 1 or 2.")
             except KeyboardInterrupt:
                 sys.exit()
 
     def ask_for_diarization_workers(self):
         print("\n" + "=" * 50)
-        print("RÓWNOLEGŁE DIARYZACJE CPU")
+        print("PARALLEL CPU DIARIZATIONS")
         print("=" * 50)
-        print("Ile plików diaryzować jednocześnie w tle?")
-        print("Enter = 3, minimum = 1, maksimum = 8")
+        print("How many files should be diarized in parallel in the background?")
+        print("Enter = 3, minimum = 1, maximum = 8")
         print("-" * 50)
 
         while True:
             try:
-                choice = input("Liczba równoległych diaryzacji (Enter = 3): ").strip()
+                choice = input("Parallel diarization workers (Enter = 3): ").strip()
                 if choice == "":
                     workers = 3
                 else:
                     workers = int(choice)
                 if 1 <= workers <= 8:
-                    print(f"✓ Równoległe diaryzacje: {workers}")
+                    print(f"✓ Parallel diarization workers: {workers}")
                     return workers
-                print("Wpisz liczbę od 1 do 8.")
+                print("Enter a number from 1 to 8.")
             except ValueError:
-                print("Wpisz liczbę od 1 do 8.")
+                print("Enter a number from 1 to 8.")
             except KeyboardInterrupt:
                 sys.exit()
 
@@ -492,18 +492,18 @@ class AudioTranscriber:
         try:
             from diarize import diarize as _diarize_fn
         except ImportError:
-            print("Brak biblioteki diarize. Instaluję...")
+            print("Missing diarize package. Installing...")
             if not install_package("diarize"):
-                print("✗ Instalacja nieudana. Wyłączam diaryzację.")
+                print("✗ Installation failed. Disabling diarization.")
                 self.use_diarization = False
                 return None
             try:
                 from diarize import diarize as _diarize_fn
             except ImportError as e:
-                print(f"✗ Import po instalacji nieudany: {e}. Wyłączam diaryzację.")
+                print(f"✗ Import after installation failed: {e}. Disabling diarization.")
                 self.use_diarization = False
                 return None
-        print("✓ Biblioteka diarize gotowa (CPU pipeline)")
+        print("✓ diarize library ready (CPU pipeline)")
         return _diarize_fn
 
     def _run_diarization(self, audio_data, sample_rate):
@@ -526,7 +526,7 @@ class AudioTranscriber:
                     pass
 
             unique = sorted({s.speaker for s in result.segments})
-            speaker_map = {s: f"Rozmówca {i+1}" for i, s in enumerate(unique)}
+            speaker_map = {s: f"Speaker {i+1}" for i, s in enumerate(unique)}
             return [(s.start, s.end, speaker_map[s.speaker]) for s in result.segments]
         except Exception as e:
             return RuntimeError(str(e))
@@ -547,7 +547,7 @@ class AudioTranscriber:
                 num_speakers=self.num_speakers
             )
             unique = sorted({s.speaker for s in result.segments})
-            speaker_map = {s: f"Rozmówca {i+1}" for i, s in enumerate(unique)}
+            speaker_map = {s: f"Speaker {i+1}" for i, s in enumerate(unique)}
             return [(s.start, s.end, speaker_map[s.speaker]) for s in result.segments]
         except Exception as e:
             return RuntimeError(str(e))
@@ -569,47 +569,47 @@ class AudioTranscriber:
 
     def ask_for_format_preferences(self):
         print("\n" + "=" * 50)
-        print("OPCJE FORMATOWANIA TRANSKRYPCJI")
+        print("TRANSCRIPTION FORMATTING OPTIONS")
         print("=" * 50)
-        print("1. Z timecodami (domyślnie)  – [HH:MM:SS] tekst")
-        print("2. Bez timecodów             – tylko tekst w nowych liniach")
+        print("1. With timestamps (default) - [HH:MM:SS] text")
+        print("2. Without timestamps        - text only on new lines")
         print("-" * 50)
 
         while True:
             try:
-                choice = input("Wybierz opcję (1 lub 2, Enter = 1): ").strip()
+                choice = input("Choose an option (1 or 2, Enter = 1): ").strip()
                 if choice in ("", "1"):
-                    print("✓ Wybrano: transkrypcja z timecodami")
+                    print("✓ Selected: transcription with timestamps")
                     return True
                 if choice == "2":
-                    print("✓ Wybrano: transkrypcja bez timecodów")
+                    print("✓ Selected: transcription without timestamps")
                     return False
-                print("Nieprawidłowy wybór. Wpisz 1 lub 2.")
+                print("Invalid choice. Enter 1 or 2.")
             except KeyboardInterrupt:
                 sys.exit()
 
     def ask_for_performance_profile(self):
         print("\n" + "=" * 50)
-        print("PROFIL OBCIĄŻENIA GPU")
+        print("GPU LOAD PROFILE")
         print("=" * 50)
-        print("1. Full speed   - maksimum szybkości, może zająć GPU na 100%")
-        print("2. Balanced     - wolniej, zwykle łatwiej pracować równolegle")
-        print("3. Background   - najlżej dla kompa, najwolniej")
+        print("1. Full speed   - maximum speed, may keep the GPU at 100%")
+        print("2. Balanced     - slower, usually easier to run in parallel")
+        print("3. Background   - lightest on the machine, slowest")
         print("-" * 50)
 
         while True:
             try:
-                choice = input("Wybierz profil (1-3, Enter = 1): ").strip()
+                choice = input("Choose a profile (1-3, Enter = 1): ").strip()
                 if choice in ("", "1"):
-                    print("✓ Wybrano: Full speed")
+                    print("✓ Selected: Full speed")
                     return "full"
                 if choice == "2":
-                    print("✓ Wybrano: Balanced")
+                    print("✓ Selected: Balanced")
                     return "balanced"
                 if choice == "3":
-                    print("✓ Wybrano: Background")
+                    print("✓ Selected: Background")
                     return "background"
-                print("Nieprawidłowy wybór. Wpisz 1-3.")
+                print("Invalid choice. Enter 1-3.")
             except KeyboardInterrupt:
                 sys.exit()
 
@@ -640,8 +640,8 @@ class AudioTranscriber:
         self.performance_settings = profiles[self.performance_profile]
 
         if self.performance_profile != "full":
-            print("Uwaga: to nie jest twardy limit procentowy GPU, tylko łagodzenie obciążenia.")
-            print("Jeśli sterownik/model nadal mocno zajmuje GPU, wybierz Background albo CPU przy braku CUDA.")
+            print("Note: this is not a hard GPU percentage limit, only a load reducer.")
+            print("If the driver/model still heavily uses the GPU, choose Background or CPU if CUDA is unavailable.")
 
     def throttle_if_needed(self):
         pause_seconds = self.performance_settings.get("segment_pause", 0.0)
@@ -651,13 +651,13 @@ class AudioTranscriber:
     def pause_between_files_if_needed(self):
         pause_seconds = self.performance_settings.get("file_pause", 0.0)
         if pause_seconds > 0:
-            print(f"Pauza profilu {self.performance_profile}: {pause_seconds:.0f}s przed następnym plikiem...")
+            print(f"Profile pause {self.performance_profile}: {pause_seconds:.0f}s before the next file...")
             time.sleep(pause_seconds)
 
     # ----------------------------------------------------------------
 
     def _transcribe_with_whisper(self, audio_data):
-        """Transkrybuje audio używając Whisper"""
+        """Transcribes audio using Whisper."""
         segments, info = self.model.transcribe(
             audio_data,
             language="pl",
@@ -673,7 +673,7 @@ class AudioTranscriber:
     
     
     def _transcribe_with_parakeet(self, audio_data):
-        """Transkrybuje audio używając Parakeet v3 przez NeMo"""
+        """Transcribes audio using Parakeet v3 through NeMo."""
         import tempfile
         import soundfile as sf
         import logging
@@ -681,24 +681,24 @@ class AudioTranscriber:
         from contextlib import redirect_stdout, redirect_stderr
         import io
         
-        # Pobierz model NeMo
+        # Get the NeMo model.
         asr_model = self.model["model"]
         
-        # Zapisz audio_data do tymczasowego pliku (NeMo wymaga pliku)
+        # Save audio_data to a temporary file (NeMo requires a file).
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
-            # Zapisz audio jako plik WAV
+            # Write the audio as a WAV file.
             sf.write(tmp_file.name, audio_data, 16000)
             
             try:
-                # Bardzo agresywne wyciszanie logów
+                # Silence logs very aggressively.
                 logging.getLogger().setLevel(logging.CRITICAL)
                 logging.getLogger("nemo").setLevel(logging.CRITICAL)
                 logging.getLogger("nemo_logging").setLevel(logging.CRITICAL)
                 
-                # Przechwytuj stdout i stderr aby ukryć wszystkie logi NeMo
+                # Capture stdout and stderr to hide all NeMo logs.
                 f = io.StringIO()
                 
-                # Tymczasowo przekieruj stdout i stderr
+                # Temporarily redirect stdout and stderr.
                 old_stdout = sys.stdout
                 old_stderr = sys.stderr
                 
@@ -706,7 +706,7 @@ class AudioTranscriber:
                     sys.stdout = f
                     sys.stderr = f
                     
-                    # Transkrybuj używając NeMo
+                    # Transcribe using NeMo.
                     output = asr_model.transcribe(
                         [tmp_file.name],
                         batch_size=1,
@@ -715,19 +715,19 @@ class AudioTranscriber:
                     )
                     
                 finally:
-                    # Przywróć stdout i stderr
+                    # Restore stdout and stderr.
                     sys.stdout = old_stdout
                     sys.stderr = old_stderr
                 
-                # Pobierz wyniki
+                # Get the results.
                 transcription = output[0].text
                 
-                # Sprawdź czy są timecody
+                # Check whether timestamps are available.
                 segments = []
                 if hasattr(output[0], 'timestamp') and output[0].timestamp:
                     timestamps = output[0].timestamp
                     if 'segment' in timestamps and timestamps['segment']:
-                        # Użyj timecodów segmentów
+                        # Use segment timestamps.
                         for segment in timestamps['segment']:
                             segments.append(type('Segment', (), {
                                 'start': segment['start'],
@@ -735,7 +735,7 @@ class AudioTranscriber:
                                 'text': segment['segment']
                             })())
                     elif 'word' in timestamps and timestamps['word']:
-                        # Jeśli brak segmentów, użyj słów
+                        # If there are no segments, use words.
                         for word in timestamps['word']:
                             segments.append(type('Segment', (), {
                                 'start': word['start'],
@@ -743,7 +743,7 @@ class AudioTranscriber:
                                 'text': word['word']
                             })())
                 
-                # Jeśli brak timecodów, utwórz jeden segment
+                # If there are no timestamps, create a single segment.
                 if not segments:
                     segments = [type('Segment', (), {
                         'start': 0,
@@ -752,7 +752,7 @@ class AudioTranscriber:
                     })()]
                 
                 info = type('Info', (), {
-                    'language': 'pl',  # Parakeet automatycznie wykrywa język
+                    'language': 'pl',  # Parakeet detects the language automatically.
                     'language_probability': 0.95,
                     'duration': len(audio_data) / 16000
                 })()
@@ -760,7 +760,7 @@ class AudioTranscriber:
                 return segments, info
                 
             finally:
-                # Usuń tymczasowy plik
+                # Remove the temporary file.
                 import os
                 try:
                     os.unlink(tmp_file.name)
@@ -844,7 +844,7 @@ class AudioTranscriber:
 
             self.clear_cuda_cache()
             half = len(audio_chunk) // 2
-            print(f"\nCUDA OOM na kawałku {duration:.1f}s. Dzielę go na pół i próbuję dalej.")
+            print(f"\nCUDA OOM on a {duration:.1f}s chunk. Splitting it in half and trying again.")
 
             first_info = self.transcribe_audio_chunk_with_retry(
                 audio_chunk[:half], offset_seconds, collect=collect
@@ -858,13 +858,13 @@ class AudioTranscriber:
 
     def _write_diarized_output(self, collected, turns, output_file, use_timecodes):
         print("\n" + "-" * 50)
-        print("Transkrypcja z diaryzacją:")
+        print("Transcription with diarization:")
         print("-" * 50)
         try:
             with open(output_file, "r", encoding="utf-8") as existing:
                 current_content = existing.read()
-            raw_marker = "\nTranskrypcja surowa (zapis na bieżąco, przed diaryzacją):"
-            diar_marker = "\nTranskrypcja z diaryzacją:"
+            raw_marker = "\nRaw transcription (saved live before diarization):"
+            diar_marker = "\nTranscription with diarization:"
             if raw_marker in current_content:
                 header = current_content.split(raw_marker, 1)[0].rstrip()
             elif diar_marker in current_content:
@@ -877,7 +877,7 @@ class AudioTranscriber:
         with open(output_file, "w", encoding="utf-8") as f:
             if header:
                 f.write(header + "\n\n")
-            f.write("Transkrypcja z diaryzacją:\n")
+            f.write("Transcription with diarization:\n")
             f.write("-" * 50 + "\n")
             for abs_start, abs_end, text in collected:
                 speaker = self._assign_speaker(abs_start, abs_end, turns)
@@ -890,38 +890,38 @@ class AudioTranscriber:
                 line = f"{ts}{label}{text}\n"
                 f.write(line)
                 print(line, end="")
-            f.write(f"\nZakończono transkrypcję: "
+            f.write(f"\nTranscription completed: "
                     f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     def _write_diarized_segments(self, segments, turns):
         self._write_diarized_output(segments, turns, self.output_file, self.use_timecodes)
 
     def transcribe_file(self, show_finished_dialog=True, file_index=None, total_files=None, defer_diarization=False):
-        """Transkrybuje plik audio"""
+        """Transcribes an audio file."""
         file_basename = os.path.basename(self.audio_file_path)
         if file_index is not None and total_files is not None:
-            self._progress_label = f"[Plik {file_index}/{total_files}: {file_basename}]"
+            self._progress_label = f"[File {file_index}/{total_files}: {file_basename}]"
         else:
             self._progress_label = f"[{file_basename}]"
-        print(f"\nTranskrybowanie pliku: {file_basename}")
-        print("Proszę czekać...")
+        print(f"\nTranscribing file: {file_basename}")
+        print("Please wait...")
 
         try:
-            # Wczytaj plik audio
+            # Load the audio file.
             audio_data, sr = load_audio_file(self.audio_file_path)
             duration = len(audio_data) / self.sample_rate
             chunk_seconds = self.performance_settings["chunk_seconds"]
             chunk_samples = int(chunk_seconds * self.sample_rate)
 
-            print(f"Długość audio: {duration:.2f}s")
-            print(f"Chunkowanie: {chunk_seconds}s na kawałek")
-            print("\nTranskrypcja:")
+            print(f"Audio length: {duration:.2f}s")
+            print(f"Chunk size: {chunk_seconds}s per chunk")
+            print("\nTranscription:")
             print("-" * 50)
 
             collected = [] if self.use_diarization else None
             if collected is not None:
                 with open(self.output_file, "a", encoding="utf-8") as f:
-                    f.write("\nTranskrypcja surowa (zapis na bieżąco, przed diaryzacją):\n")
+                    f.write("\nRaw transcription (saved live before diarization):\n")
                     f.write("-" * 50 + "\n")
             first_info = None
             total_chunks = max(1, (len(audio_data) + chunk_samples - 1) // chunk_samples)
@@ -943,13 +943,13 @@ class AudioTranscriber:
                 self.clear_cuda_cache()
 
             if first_info is not None:
-                print(f"\nWykryto język: {first_info.language} "
-                      f"(prawdopodobieństwo: {first_info.language_probability:.2f})")
+                print(f"\nDetected language: {first_info.language} "
+                      f"(probability: {first_info.language_probability:.2f})")
 
             if self.use_diarization and collected is not None:
                 self.clear_cuda_cache()
                 with open(self.output_file, "a", encoding="utf-8") as f:
-                    f.write(f"\nZakończono transkrypcję surową: "
+                    f.write(f"\nRaw transcription completed: "
                             f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                 if defer_diarization:
                     diar_wav_path = self._prepare_diarization_wav(audio_data, sr)
@@ -960,24 +960,24 @@ class AudioTranscriber:
                 else:
                     speaker_turns = self._run_diarization(audio_data, sr)
                     if isinstance(speaker_turns, Exception):
-                        print(f"✗ Błąd diaryzacji: {speaker_turns}. Kontynuuję bez przypisania rozmówców.")
+                        print(f"✗ Diarization error: {speaker_turns}. Continuing without speaker labels.")
                         speaker_turns = []
                     self._write_diarized_output(collected, speaker_turns, self.output_file, self.use_timecodes)
 
         except Exception as e:
-            print(f"Błąd podczas transkrypcji: {e}")
+            print(f"Transcription error: {e}")
             self.clear_cuda_cache()
             return False
 
         if not (self.use_diarization and collected is not None):
             with open(self.output_file, "a", encoding="utf-8") as f:
-                f.write(f"\nZakończono transkrypcję: "
+                f.write(f"\nTranscription completed: "
                         f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         
         print("\n" + "=" * 50)
-        print("Transkrypcja zakończona!")
+        print("Transcription complete!")
         
-        # Okienko z opcją powtórki
+        # Dialog offering a repeat.
         if show_finished_dialog:
             self.repeat_transcription = finished_dialog(self.output_file)
         return True
@@ -1006,7 +1006,7 @@ class AudioTranscriber:
                 try:
                     block = np.concatenate(audio_data).astype(np.float32) / 32768.0
                     
-                    # Transkrybuj używając wybranego modelu
+                    # Transcribe using the selected model.
                     if self.model_type.startswith("whisper-"):
                         segments, _ = self._transcribe_with_whisper(block)
                     else:  # parakeet
@@ -1021,10 +1021,10 @@ class AudioTranscriber:
                             print(line, end="")
                             self.throttle_if_needed()
                 except Exception as e:
-                    print(f"Błąd przetwarzania audio: {e}")
+                    print(f"Audio processing error: {e}")
 
     def start_microphone_recording(self):
-        print("\nNagrywanie…  (Ctrl+C ‑ zakończ)")
+        print("\nRecording... (Ctrl+C to stop)")
         self.is_running = True
         self.thread = threading.Thread(target=self.process_audio, daemon=True)
         self.thread.start()
@@ -1051,64 +1051,64 @@ class AudioTranscriber:
             self.thread.join()
 
         with open(self.output_file, "a", encoding="utf-8") as f:
-            f.write(f"\nZakończono transkrypcję: "
+            f.write(f"\nTranscription completed: "
                     f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
-        # okienko z opcją powtórki
+        # Dialog offering a repeat.
         self.repeat_transcription = finished_dialog(self.output_file)
 
     # ----------------------------------------------------------------
 
     def start(self):
-        """Uruchamia odpowiedni tryb transkrypcji"""
+        """Starts the selected transcription mode."""
         if self.is_file_mode:
             self.transcribe_file()
         else:
             if self.use_diarization:
-                print("\n⚠ Diaryzacja nie jest wspierana w trybie mikrofonu (wymaga całego pliku).")
-                print("  Kontynuuję bez diaryzacji.")
+                print("\n⚠ Diarization is not supported in microphone mode (it requires the full file).")
+                print("  Continuing without diarization.")
                 self.use_diarization = False
             self.start_microphone_recording()
 
 
-# ------------------------- pętla główna -----------------------------
+# ------------------------- main loop -----------------------------
 
 def main():
-    # Bardzo agresywne wyciszanie logów
+    # Silence logs aggressively.
     import logging
     import os
     
-    # Ustaw zmienne środowiskowe dla wyciszenia (chyba że użytkownik chce logi)
+    # Set environment variables for silence unless the user wants logs.
     if not os.environ.get("SHOW_NEMO_LOGS"):
         os.environ["NEMO_LOGGING_LEVEL"] = "CRITICAL"
         os.environ["NVIDIA_TF32_OVERRIDE"] = "0"
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Ogranicza do jednej karty GPU
     os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
     
-    # Wycisz wszystkie logi Python
+    # Silence all Python logs.
     logging.getLogger().setLevel(logging.CRITICAL)
     logging.getLogger("nemo").setLevel(logging.CRITICAL)
     logging.getLogger("nemo_logging").setLevel(logging.CRITICAL)
     logging.getLogger("transformers").setLevel(logging.CRITICAL)
     logging.getLogger("torch").setLevel(logging.CRITICAL)
     
-    # Wycisz logi root logger
+    # Silence the root logger.
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.CRITICAL)
     for handler in root_logger.handlers:
         handler.setLevel(logging.CRITICAL)
     
-    # Sprawdź i zainstaluj brakujące zależności
+    # Check and install missing dependencies.
     if check_and_install_dependencies():
         print("\n" + "=" * 50)
-        print("RESTART APLIKACJI")
+        print("APPLICATION RESTART")
         print("=" * 50)
-        print("Biblioteki zostały zainstalowane. Uruchamiam ponownie...")
-        # Restart aplikacji z nowymi bibliotekami
+        print("The packages were installed. Restarting...")
+        # Restart the application with the newly installed packages.
         os.execv(sys.executable, [sys.executable] + sys.argv)
         return
     
-    # Sprawdź czy przekazano pliki/foldery jako argumenty
+    # Check whether files/folders were passed as arguments.
     audio_items = []
     
     if len(sys.argv) > 1:
@@ -1116,16 +1116,16 @@ def main():
         if audio_items is None:
             return
         if not audio_items:
-            print("Nie znaleziono żadnych obsługiwanych plików audio/wideo w przekazanych ścieżkach.")
-            print(f"Obsługiwane formaty: {', '.join(SUPPORTED_EXTENSIONS)}")
-            input("Naciśnij Enter aby zakończyć...")
+            print("No supported audio/video files were found in the provided paths.")
+            print(f"Supported formats: {', '.join(SUPPORTED_EXTENSIONS)}")
+            input("Press Enter to exit...")
             return
 
     if audio_items:
         print("\n" + "=" * 50)
-        print("TRYB PLIKÓW")
+        print("FILE MODE")
         print("=" * 50)
-        print(f"Liczba plików do transkrypcji: {len(audio_items)}")
+        print(f"Number of files to transcribe: {len(audio_items)}")
         for index, (audio_file_path, output_subdir) in enumerate(audio_items, start=1):
             output_hint = output_subdir if output_subdir else "."
             print(f"{index}. {audio_file_path} -> output\\{output_hint}")
@@ -1137,8 +1137,8 @@ def main():
         n = len(audio_items)
         parallel_diar = transcriber.use_diarization and n > 1
         diar_workers = transcriber.diarization_workers if parallel_diar else 1
-        # Future zadań CPU: diaryzacja + natychmiastowy zapis do właściwego pliku.
-        # Audio dla oczekujących zadań jest trzymane jako temp WAV na dysku, nie jako numpy array w RAM.
+        # CPU tasks: diarization + immediate save to the target file.
+        # Pending tasks keep audio as temp WAV on disk, not as numpy arrays in RAM.
         all_diar = []
 
         from concurrent.futures import ThreadPoolExecutor
@@ -1147,10 +1147,10 @@ def main():
         def run_and_write_diarization(collected, diar_wav_path, out_file, use_tc, fidx):
             turns = transcriber._run_diarization_from_wav(diar_wav_path)
             if isinstance(turns, Exception):
-                print(f"\n  ✗ Plik {fidx}/{n}: błąd diaryzacji: {turns}. Zapisuję bez etykiet.", flush=True)
+                print(f"\n  ✗ File {fidx}/{n}: diarization error: {turns}. Saving without labels.", flush=True)
                 turns = []
             else:
-                print(f"\n  ✓ Plik {fidx}/{n}: diaryzacja zakończona ({len(turns)} segmentów)", flush=True)
+                print(f"\n  ✓ File {fidx}/{n}: diarization complete ({len(turns)} segments)", flush=True)
             transcriber._write_diarized_output(collected, turns, out_file, use_tc)
             return fidx
 
@@ -1163,19 +1163,19 @@ def main():
                 while not future.done():
                     time.sleep(5)
                     if not future.done():
-                        print(f"  (diaryzacja pliku {fidx}/{n} wciąż trwa...)", flush=True)
+                        print(f"  (diarization for file {fidx}/{n} is still running...)", flush=True)
                 future.result()
             all_diar[:] = pending
 
         if parallel_diar:
-            print(f"Równoległe diaryzacje CPU: {diar_workers}")
+            print(f"Parallel CPU diarizations: {diar_workers}")
 
         with ThreadPoolExecutor(max_workers=diar_workers) as diar_pool:
             for index, (audio_file_path, output_subdir) in enumerate(audio_items, start=1):
                 if index > 1:
                     transcriber.set_audio_source(audio_file_path, output_subdir)
                 print("\n" + "=" * 50)
-                print(f"PLIK {index}/{n}")
+                print(f"FILE {index}/{n}")
                 print("=" * 50)
                 try:
                     success = transcriber.transcribe_file(
@@ -1185,25 +1185,25 @@ def main():
                         defer_diarization=parallel_diar,
                     )
                 except KeyboardInterrupt:
-                    print(f"\n\nPrzerwano plik {index}/{n}.")
+                    print(f"\n\nInterrupted file {index}/{n}.")
                     if index < n:
                         remaining = n - index
                         try:
-                            choice = input(f"Pominąć ten plik i kontynuować pozostałe {remaining}? (t/N): ").strip().lower()
+                            choice = input(f"Skip this file and continue with the remaining {remaining}? (y/N): ").strip().lower()
                         except KeyboardInterrupt:
-                            print("\nPrzerywam wszystko.")
+                            print("\nStopping everything.")
                             break
-                        if choice in ("t", "tak", "y", "yes"):
+                        if choice in ("y", "yes"):
                             continue
-                    print("Przerywam przetwarzanie.")
+                    print("Stopping processing.")
                     break
 
-                # Submituj diaryzację tego pliku od razu w tle — nie czekaj
+                # Submit diarization for this file immediately in the background.
                 curr_diar = getattr(transcriber, '_deferred_diar', None)
                 transcriber._deferred_diar = None
                 if curr_diar is not None:
                     collected, diar_wav_path, out_file, use_tc = curr_diar
-                    print(f"\n↳ Diaryzacja pliku {index}/{n} w tle (CPU)...", flush=True)
+                    print(f"\n↳ Diarization for file {index}/{n} in the background (CPU)...", flush=True)
                     future = diar_pool.submit(
                         run_and_write_diarization,
                         collected,
@@ -1216,20 +1216,20 @@ def main():
                     collect_finished_diarizations(wait=False)
 
                 if not success:
-                    choice = input("Transkrypcja tego pliku się nie udała. Kontynuować z następnym? (T/n): ").strip().lower()
-                    if choice in ("n", "no", "nie"):
+                    choice = input("This file failed to transcribe. Continue with the next one? (Y/n): ").strip().lower()
+                    if choice in ("n", "no"):
                         break
                 if index < n:
                     transcriber.pause_between_files_if_needed()
 
-            # Wszystkie transkrypcje gotowe — zbierz wyniki diaryzacji i zapisz pliki
+            # All transcriptions are done - collect diarization results and write files.
             if all_diar:
                 print(f"\n{'='*50}")
-                print("Finalizacja diaryzacji (CPU)...")
+                print("Finalizing diarization (CPU)...")
                 collect_finished_diarizations(wait=True)
 
         print("\n" + "=" * 50)
-        print("Zakończono transkrypcję wszystkich plików.")
+        print("Finished transcribing all files.")
         print(f"Output: {transcriber.output_dir}")
         return
     
@@ -1241,13 +1241,13 @@ def main():
 
 
 if __name__ == "__main__":
-    # bezpieczna obsługa SIGINT (Ctrl+C) – żeby uniknąć „Terminate batch job"
+    # Safe SIGINT handling (Ctrl+C) to avoid the "Terminate batch job" prompt.
     signal.signal(signal.SIGINT, signal.default_int_handler)
     
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\nPrzerwano przez użytkownika.")
+        print("\n\nInterrupted by the user.")
     except Exception as e:
-        print(f"\nNieoczekiwany błąd: {e}")
-        input("Naciśnij Enter aby zakończyć...")
+        print(f"\nUnexpected error: {e}")
+        input("Press Enter to exit...")
