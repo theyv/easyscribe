@@ -487,7 +487,7 @@ class AudioTranscriber:
         try:
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                 tmp_path = tmp.name
-            sf.write(tmp_path, audio_data, sample_rate)
+            sf.write(tmp_path, audio_data, sample_rate, subtype="PCM_16")
             try:
                 result = self.diarization_pipeline(
                     tmp_path,
@@ -504,6 +504,32 @@ class AudioTranscriber:
             return [(s.start, s.end, speaker_map[s.speaker]) for s in result.segments]
         except Exception as e:
             return RuntimeError(str(e))
+
+    def _prepare_diarization_wav(self, audio_data, sample_rate):
+        import tempfile, soundfile as sf
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+        sf.write(tmp_path, audio_data, sample_rate, subtype="PCM_16")
+        return tmp_path
+
+    def _run_diarization_from_wav(self, wav_path):
+        if not self.diarization_pipeline:
+            return []
+        try:
+            result = self.diarization_pipeline(
+                wav_path,
+                num_speakers=self.num_speakers
+            )
+            unique = sorted({s.speaker for s in result.segments})
+            speaker_map = {s: f"Rozmówca {i+1}" for i, s in enumerate(unique)}
+            return [(s.start, s.end, speaker_map[s.speaker]) for s in result.segments]
+        except Exception as e:
+            return RuntimeError(str(e))
+        finally:
+            try:
+                os.remove(wav_path)
+            except OSError:
+                pass
 
     def _assign_speaker(self, seg_start, seg_end, turns):
         if not turns:
@@ -862,8 +888,9 @@ class AudioTranscriber:
             if self.use_diarization and collected is not None:
                 self.clear_cuda_cache()
                 if defer_diarization:
+                    diar_wav_path = self._prepare_diarization_wav(audio_data, sr)
                     self._deferred_diar = (
-                        collected, audio_data, sr,
+                        collected, diar_wav_path,
                         self.output_file, self.use_timecodes
                     )
                 else:
@@ -1045,26 +1072,32 @@ def main():
 
         n = len(audio_items)
         parallel_diar = transcriber.use_diarization and n > 1
-        pending_future = None   # Future[list] — diaryzacja poprzedniego pliku
-        pending_write = None    # (collected, output_file, use_timecodes, file_idx)
-
-        def flush_pending_diarization():
-            nonlocal pending_future, pending_write
-            if pending_future is None:
-                return
-            collected, out_file, use_tc, fidx = pending_write
-            print(f"\n↳ Czekam na diaryzację pliku {fidx}/{n}...")
-            turns = pending_future.result()
-            if isinstance(turns, Exception):
-                print(f"  ✗ Błąd: {turns}. Zapisuję bez etykiet rozmówców.")
-                turns = []
-            else:
-                print(f"  ✓ Diaryzacja pliku {fidx}/{n} zakończona ({len(turns)} segmentów)")
-            transcriber._write_diarized_output(collected, turns, out_file, use_tc)
-            pending_future = None
-            pending_write = None
+        # (future, collected, out_file, use_tc, file_idx) — wypełniane podczas transkrypcji.
+        # Audio dla oczekujących zadań jest trzymane jako temp WAV na dysku, nie jako numpy array w RAM.
+        all_diar = []
 
         from concurrent.futures import ThreadPoolExecutor
+        import time
+
+        def flush_diarizations(wait=False):
+            pending = []
+            for future, collected, out_file, use_tc, fidx in all_diar:
+                if not wait and not future.done():
+                    pending.append((future, collected, out_file, use_tc, fidx))
+                    continue
+                while not future.done():
+                    time.sleep(5)
+                    if not future.done():
+                        print(f"  (diaryzacja pliku {fidx}/{n} wciąż trwa...)", flush=True)
+                turns = future.result()
+                if isinstance(turns, Exception):
+                    print(f"  ✗ Plik {fidx}/{n}: błąd diaryzacji: {turns}. Zapisuję bez etykiet.")
+                    turns = []
+                else:
+                    print(f"  ✓ Plik {fidx}/{n}: diaryzacja zakończona ({len(turns)} segmentów)")
+                transcriber._write_diarized_output(collected, turns, out_file, use_tc)
+            all_diar[:] = pending
+
         with ThreadPoolExecutor(max_workers=1) as diar_pool:
             for index, (audio_file_path, output_subdir) in enumerate(audio_items, start=1):
                 if index > 1:
@@ -1080,7 +1113,6 @@ def main():
                         defer_diarization=parallel_diar,
                     )
                 except KeyboardInterrupt:
-                    flush_pending_diarization()
                     print(f"\n\nPrzerwano plik {index}/{n}.")
                     if index < n:
                         remaining = n - index
@@ -1094,20 +1126,15 @@ def main():
                     print("Przerywam przetwarzanie.")
                     break
 
-                # Pobierz stan diaryzacji dla właśnie skończonego pliku
+                # Submituj diaryzację tego pliku od razu w tle — nie czekaj
                 curr_diar = getattr(transcriber, '_deferred_diar', None)
                 transcriber._deferred_diar = None
-
-                # Czekaj na diaryzację POPRZEDNIEGO pliku i zapisz go
-                # (transkrypcja bieżącego już się skończyła, więc GPU wolny)
-                flush_pending_diarization()
-
-                # Submituj diaryzację bieżącego pliku w tle (CPU)
                 if curr_diar is not None:
-                    collected, audio_data, sr, out_file, use_tc = curr_diar
-                    print(f"\n↳ Diaryzacja pliku {index}/{n} w tle (CPU)...")
-                    pending_future = diar_pool.submit(transcriber._run_diarization, audio_data, sr)
-                    pending_write = (collected, out_file, use_tc, index)
+                    collected, diar_wav_path, out_file, use_tc = curr_diar
+                    print(f"\n↳ Diaryzacja pliku {index}/{n} w tle (CPU)...", flush=True)
+                    future = diar_pool.submit(transcriber._run_diarization_from_wav, diar_wav_path)
+                    all_diar.append((future, collected, out_file, use_tc, index))
+                    flush_diarizations(wait=False)
 
                 if not success:
                     choice = input("Transkrypcja tego pliku się nie udała. Kontynuować z następnym? (T/n): ").strip().lower()
@@ -1116,8 +1143,11 @@ def main():
                 if index < n:
                     transcriber.pause_between_files_if_needed()
 
-            # Ostatni plik — poczekaj na jego diaryzację
-            flush_pending_diarization()
+            # Wszystkie transkrypcje gotowe — zbierz wyniki diaryzacji i zapisz pliki
+            if all_diar:
+                print(f"\n{'='*50}")
+                print("Finalizacja diaryzacji (CPU)...")
+                flush_diarizations(wait=True)
 
         print("\n" + "=" * 50)
         print("Zakończono transkrypcję wszystkich plików.")
